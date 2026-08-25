@@ -1,0 +1,60 @@
+[project]
+name = "helena-astro"
+version = "0.1.0"
+description = "High-Energy Lepto-hadronic Emission and Neutrino Analysis"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Yangji Li" }
+]
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
+dependencies = [
+    "numpy",
+    "scipy",
+    "astropy",
+    "matplotlib",
+    "jax"
+]
+
+[project.scripts]
+helena = "helena.cli:main"
+
+[project.optional-dependencies]
+ebl = [
+    "ebltable>=0.6.3,<0.7",
+]
+migrad = [
+    "iminuit>=2.32,<2.33",
+]
+dev = [
+    "pytest",
+    "black",
+    "ruff"
+]
+
+[tool.pytest.ini_options]
+testpaths = [
+    "tests"
+]
+markers = [
+    "gpu: tests that require GPU or JAX backend"
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 88
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"

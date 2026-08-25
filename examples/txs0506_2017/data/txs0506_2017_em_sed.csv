@@ -1,0 +1,9 @@
+energy_ev,sed_flux_erg_cm2_s,energy_error_lower_ev,energy_error_upper_ev,sed_flux_error_lower_erg_cm2_s,sed_flux_error_upper_erg_cm2_s,instrument,statistic_type,scientific_use,window,source_key,note
+2.1712255404e-05,2.967825e-14,0,0,1.48484091998e-15,1.48484091998e-15,VLA,gaussian,context,MJD 58031.6429,icecube2018,"5.25 GHz; 565.3 +/- 1.0 mJy with 5% flux-scale uncertainty"
+4.135667696,3.480e-11,0,0,3.130e-12,3.130e-12,Swift-UVOT,gaussian,fit,MJD 58023.8470,keivani2018,"Extinction-corrected value at 1e15 Hz"
+1.73205080757e4,1.14074974462e-12,0,0,5.82510507891e-13,5.82510507891e-13,NuSTAR,gaussian,fit,MJD 58025,icecube2018,"Representative pivot from the published 3-100 keV power law and integrated flux"
+2.000e8,8.800e-11,0,0,3.500e-11,3.500e-11,AGILE,gaussian,fit,2017-09-10 to 2017-09-23,icecube2018,"Published E^2 dN/dE at 200 MeV"
+1.440e9,4.71762832493e-11,0,0,3.65450081509e-12,3.65450081509e-12,Fermi-LAT,gaussian,fit,MJD 58003-58033,keivani2018,"Epoch-1 power-law normalization converted at its 1.44 GeV pivot"
+1.300e11,5.41535702292e-12,1.950e10,1.950e10,1.45712354934e-12,1.45712354934e-12,MAGIC,gaussian,context,2017-09-28 to 2017-10-04,icecube2018,"Published 130 GeV differential spectrum; VHE context only because Public forward has identity EBL"
+2.11660104885e11,4.73731587141e-12,5.16601048852e10,6.83398951148e10,0,0,H.E.S.S.,upper_limit,context,2017-09-23,icecube2018,"First published 95% differential upper-limit bin; context only"
+2.11082922095e11,3.85487543364e-12,7.00829220946e10,1.04917077905e11,0,0,VERITAS,upper_limit,context,2017-09-23 to 2017-10-01,icecube2018,"First published 95% differential upper-limit bin; context only"

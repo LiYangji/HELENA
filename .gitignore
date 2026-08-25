@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environments
+.venv/
+env/
+venv/
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Build
+build/
+dist/
+
+# Local configs
+.env
+.env.local
+local_paths.yaml
+gpu_config.local.yaml
+
+# Outputs
+outputs/
+figures/generated/
+validation/reference_outputs/*.npz
+validation/reference_outputs/*.h5
+
+# OS
+.DS_Store
