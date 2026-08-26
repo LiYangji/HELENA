@@ -397,7 +397,8 @@ def test_transport_facade_matches_owner_and_is_jit_ad_transparent():
     np.testing.assert_array_equal(actual, expected)
 
     compiled = jax.jit(transport.solve_steady_state)(gamma, injection, loss, sink)
-    np.testing.assert_array_equal(compiled, actual)
+    # JIT may reorder FP64 operations; require strict numerical, not bitwise, agreement.
+    np.testing.assert_allclose(compiled, actual, rtol=2.0e-15, atol=0.0)
     value, tangent = jax.jvp(
         lambda scale: transport.solve_steady_state(
             gamma, scale * injection, loss, sink
@@ -424,8 +425,9 @@ def test_radiation_and_hadronic_facades_are_jit_ad_transparent():
             radius_cm=2.0e15,
         )
 
+    # The absolute term applies only to the numerically negligible far-tail value.
     np.testing.assert_allclose(
-        jax.jit(radiation)(1.0), radiation(1.0), rtol=2.0e-15, atol=0.0
+        jax.jit(radiation)(1.0), radiation(1.0), rtol=2.0e-15, atol=1.0e-100
     )
     radiation_value, radiation_tangent = jax.jvp(
         radiation, (jnp.float64(1.0),), (jnp.float64(0.1),)

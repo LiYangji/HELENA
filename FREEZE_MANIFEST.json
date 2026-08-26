@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "release": {
+    "distribution": "helena-astro",
+    "version": "0.1.0",
+    "scientific_source_baseline_git_sha": "15981beb794a7baebececff60d7c13000caa24ed",
+    "scientific_source_tree_sha": "d62e70d537c28ca1a3e02d3bb2729c2e47aa232f",
+    "scientific_source_changed": false,
+    "paper_i_freeze_commit_locator": "git-commit-containing-this-manifest"
+  },
+  "reference_environment": {
+    "python": "3.11.15",
+    "jax": "0.10.2",
+    "platforms": [
+      "cpu",
+      "cuda"
+    ],
+    "x64": true
+  },
+  "root_public_api": [
+    "FitResult",
+    "ForwardResult",
+    "ModelConfig",
+    "OneZoneModel",
+    "SEDDataset",
+    "configure",
+    "fit"
+  ],
+  "release_artifacts": {
+    "wheel": {
+      "filename": "helena_astro-0.1.0-py3-none-any.whl",
+      "size_bytes": 222276,
+      "sha256": "ce4c08dcbce34ce1ca289f04e506561d9d1891a775ffd191d54d748fdfa5f5d1"
+    },
+    "sdist": {
+      "filename": "helena_astro-0.1.0.tar.gz",
+      "size_bytes": 196257,
+      "sha256": "d4fc65b97e8b0f4679d127b7abc44f735139117d89ecf30bdd6f6a18479e423e"
+    }
+  },
+  "bethe_heitler_resource": {
+    "resource_name": "helena_bethe_heitler_c513_responses",
+    "cache_format_version": 1,
+    "physics_response_version": "ka2008_born_omega_lt_600_v1",
+    "grid_identifier": "c513_daughter513_proton441_targets64-86-96_v1",
+    "dtype": "<f8",
+    "fingerprints": [
+      "807a424a15042b1e20906cd3f915b0b3a568d9a7926b3796e89cbd64a9d0bc19",
+      "66d59b31d7ebfe7b904a4522070d0ff9999cddd074d342969fbc985703b364ad",
+      "1c0eff6880cfaf20ea38774574d1fae02661375a10591df28902505f86420503"
+    ],
+    "archive": {
+      "format": "zip",
+      "url": null,
+      "sha256": null
+    }
+  },
+  "validation": {
+    "fast": {
+      "passed": 45,
+      "total": 45
+    },
+    "cascade": {
+      "passed": 6,
+      "total": 6
+    },
+    "cpu_full_pytest": {
+      "passed": 76,
+      "failed": 0,
+      "skipped": 0,
+      "total": 76
+    },
+    "gpu_full_pytest": {
+      "passed": 76,
+      "failed": 0,
+      "skipped": 0,
+      "total": 76
+    },
+    "gpu_affected_file_after_test_contract_correction": {
+      "passed": 7,
+      "failed": 0,
+      "skipped": 0,
+      "total": 7
+    },
+    "p2_scientific_correctness": "SCIENTIFIC_CORRECTNESS_PASS_WITH_EXPLAINED_DIFFERENCES",
+    "p3_release_reproducibility": "RELEASE_REPRODUCIBILITY_PASS",
+    "p4_final_gate": "READY_FOR_PAPER_AND_V0.1.0_FREEZE",
+    "am3_integrated_benchmark": "PASS_WITH_EXPLAINED_PRESCRIPTION_DIFFERENCES"
+  },
+  "txs_0506_056_2017": {
+    "fit_dimension": 5,
+    "nll": -7.760890107289,
+    "parameters": {
+      "Le_erg_s": 3.3927488775351652e+41,
+      "Lp_erg_s": 3.958616711854449e+45,
+      "B_G": 0.24341513926374542,
+      "R_cm": 6816848173943095.0,
+      "p_e": 1.3654302494453847
+    },
+    "diagnostics": {
+      "maximum_additive_component_closure": 9.005782e-15,
+      "neutrino_expected_count_six_month": 0.0158287,
+      "jacobian_shape": [
+        137,
+        5
+      ],
+      "gauss_newton_status": "locally_identifiable",
+      "gauss_newton_rank": 5,
+      "gauss_newton_condition_number": 137.4867
+    }
+  },
+  "publication_only_pending": [
+    "upload the official validated BH archive, bind its real release URL and archive SHA-256, and run a clean cache fetch -> status -> forward test"
+  ]
+}
