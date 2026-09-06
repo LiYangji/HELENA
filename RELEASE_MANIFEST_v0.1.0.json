@@ -1,0 +1,1025 @@
+{
+  "schema_version": 1,
+  "release": {
+    "distribution": "helena-astro",
+    "namespace": "helena",
+    "version": "0.1.0",
+    "repository": "https://github.com/LiYangji/HELENA",
+    "intended_tag": "v0.1.0",
+    "status": "versioned_source_snapshot_author_directed_release",
+    "date": "2026-09-06"
+  },
+  "file_identity_convention": "SHA-256 of exact file bytes. This manifest excludes itself to avoid circular hashes. Final commit, package hashes, and DOI belong in a separate publication receipt.",
+  "files": {
+    ".gitignore": {
+      "sha256": {
+        "sha256": "02e5db5b09ddbf1d02e108fd55292e076639d257a2cefb87afc70a3820c28455",
+        "bytes": 375
+      },
+      "size_bytes": 375
+    },
+    "CITATION.cff": {
+      "sha256": {
+        "sha256": "25b26dbcdb10e14920561bb2a01d7826fe9d51dd766698a8a50d8716272503c8",
+        "bytes": 792
+      },
+      "size_bytes": 792
+    },
+    "FREEZE_MANIFEST.json": {
+      "sha256": {
+        "sha256": "67f04726ab41bbf815c58d79ccbb7014ac40bd15a55a981dfde850c98dee4e75",
+        "bytes": 3299
+      },
+      "size_bytes": 3299
+    },
+    "LICENSE": {
+      "sha256": {
+        "sha256": "45a1f96d3184a19122a23210a5c92b5337a35d0ce0abe63cdfa50dd6a6d68210",
+        "bytes": 1496
+      },
+      "size_bytes": 1496
+    },
+    "MANIFEST.in": {
+      "sha256": {
+        "sha256": "a04ebed1fe80d1d59e42277a7c4424c574b61936f6ec86b1cd90afc326422e52",
+        "bytes": 44
+      },
+      "size_bytes": 44
+    },
+    "Public_API/P2_runtime_parameter_contract.md": {
+      "sha256": {
+        "sha256": "3650c4d6639329b02cdc8ee43e10d07fa2aaf5ff0c4983e9fbdaa5b75f1fe477",
+        "bytes": 7725
+      },
+      "size_bytes": 7725
+    },
+    "Public_API/P3_model_forward_contract.md": {
+      "sha256": {
+        "sha256": "504dd57973f9941c0ed22a1b8924072453032cdd6145efd671dfa71dc6b0ee32",
+        "bytes": 9892
+      },
+      "size_bytes": 9892
+    },
+    "Public_API/P4_dataset_fit_contract.md": {
+      "sha256": {
+        "sha256": "032616093dffbeab8d40b4986782469ed6865715f42b88e4742cab0dcacc3e42",
+        "bytes": 6945
+      },
+      "size_bytes": 6945
+    },
+    "Public_API/P5_standalone_physics_contract.md": {
+      "sha256": {
+        "sha256": "adf9737f303207b7e93563342b9a1f87e1f11de03f8bcb26de679c88dc37029a",
+        "bytes": 18980
+      },
+      "size_bytes": 18980
+    },
+    "Public_API/P6A_derivative_target_contract.md": {
+      "sha256": {
+        "sha256": "77c8b608dd11dd9b936365d557bda323d0bac5c8938adbd9ab7969d87111352b",
+        "bytes": 4133
+      },
+      "size_bytes": 4133
+    },
+    "Public_API/P6_sensitivity_contract.md": {
+      "sha256": {
+        "sha256": "44540a075d44b2974f1cc0f2fbc5588c6eb6c507830fca6dc76eb38f08b59956",
+        "bytes": 5659
+      },
+      "size_bytes": 5659
+    },
+    "Public_API/P7B_freeze_contract.md": {
+      "sha256": {
+        "sha256": "0d4d6ca7b968e7d3018323c5a7f20b1b7a8d5786feb90ce6b9b0a9c667446f5c",
+        "bytes": 3967
+      },
+      "size_bytes": 3967
+    },
+    "Public_API/README.md": {
+      "sha256": {
+        "sha256": "9663282ce134fa15529d2d5c6f55d189bf3485d933dfd4d23d4615bbcb7febb1",
+        "bytes": 2860
+      },
+      "size_bytes": 2860
+    },
+    "Public_API/public_api_spec.md": {
+      "sha256": {
+        "sha256": "47a27f0d9246bb898ae0039b020f21747524d535f7ac79069ac75a53251a26ef",
+        "bytes": 26513
+      },
+      "size_bytes": 26513
+    },
+    "README.md": {
+      "sha256": {
+        "sha256": "3c4704860454777a65b00f17dc381368c93d56c19935299c530cc8ff8d87f7fd",
+        "bytes": 5539
+      },
+      "size_bytes": 5539
+    },
+    "docs/HELENA.md": {
+      "sha256": {
+        "sha256": "cf399d1b3e8e7dee27b80d53733ff71a5e798a9abccda5877a36d81feb38a014",
+        "bytes": 1101
+      },
+      "size_bytes": 1101
+    },
+    "docs/physics_assumptions.md": {
+      "sha256": {
+        "sha256": "df79904c4f1683b6c3f4df6d3ca7dca11ee07cd3363e5f478c042ec10743a4df",
+        "bytes": 32240
+      },
+      "size_bytes": 32240
+    },
+    "docs/units_and_conventions.md": {
+      "sha256": {
+        "sha256": "986cd2b37c9fbee8985d845e1a0536f3a9fce55f066e3d64fadaaf74f4ea8f84",
+        "bytes": 15187
+      },
+      "size_bytes": 15187
+    },
+    "examples/README.md": {
+      "sha256": {
+        "sha256": "f9084bc9249d56a25f8c16e03bff02f2bd38640305d64e62fa4b31ef2d9c8713",
+        "bytes": 4721
+      },
+      "size_bytes": 4721
+    },
+    "examples/txs0506_2017/data/PROVENANCE.md": {
+      "sha256": {
+        "sha256": "1e723e413c97afd50e99adaeaa7dadbeebb567cad894abc331de39aa636927a9",
+        "bytes": 7043
+      },
+      "size_bytes": 7043
+    },
+    "examples/txs0506_2017/data/fetch_public_sed.py": {
+      "sha256": {
+        "sha256": "8fea0706a4933412d893708fa73cc9dbb15a5f077d890218b488b5d3f612e100",
+        "bytes": 12495
+      },
+      "size_bytes": 12495
+    },
+    "examples/txs0506_2017/data/icecube_aeff_ic86c.csv": {
+      "sha256": {
+        "sha256": "95c258eb7de841827f43dad2e7c845ff71b4e235cc47568132879ca4f7db64e6",
+        "bytes": 1320
+      },
+      "size_bytes": 1320
+    },
+    "examples/txs0506_2017/data/photon_data_provenance.json": {
+      "sha256": {
+        "sha256": "7c97446d8d8490d6f7eef3f8c269331c8c54f7ec0df990639e7e54ffdedafa65",
+        "bytes": 87120
+      },
+      "size_bytes": 87120
+    },
+    "examples/txs0506_2017/data/txs0506_2017_curated.csv": {
+      "sha256": {
+        "sha256": "dc6d635f885c521048ee1a14634dff032867960bf034c1fb41ee2679afe6774d",
+        "bytes": 312030
+      },
+      "size_bytes": 312030
+    },
+    "examples/txs0506_2017/data/txs0506_2017_em_sed.csv": {
+      "sha256": {
+        "sha256": "b115989a7c16f0436a513af6658ab36794db44c09ec6b947a477cd9412f4e53d",
+        "bytes": 1661
+      },
+      "size_bytes": 1661
+    },
+    "examples/txs0506_2017/data/txs0506_public_raw.ecsv": {
+      "sha256": {
+        "sha256": "3075e7130b427ee00943e71f3437dda93803138f0ce0ca10ce8884b8d931b2e4",
+        "bytes": 119335
+      },
+      "size_bytes": 119335
+    },
+    "examples/txs0506_2017/txs0506_2017_canonical.ipynb": {
+      "sha256": {
+        "sha256": "62255439f06489a663238406533c2cc6ed29e578690abfa5ccbf4af7f0b57a87",
+        "bytes": 493027
+      },
+      "size_bytes": 493027
+    },
+    "examples/txs0506_2017/txs0506_helpers.py": {
+      "sha256": {
+        "sha256": "c1d63a78ab673734840af9e4098638c12f0d1409d35c3701d3ddf2695f2febee",
+        "bytes": 28006
+      },
+      "size_bytes": 28006
+    },
+    "pyproject.toml": {
+      "sha256": {
+        "sha256": "306dc42bcb1e3f403d6fb52814870636623f24a27bd1a7814e3bd466a92ce173",
+        "bytes": 980
+      },
+      "size_bytes": 980
+    },
+    "quickstart/helena_cpu_quickstart.ipynb": {
+      "sha256": {
+        "sha256": "3b45861b42b99b98c219ace8a7e0ce442c3b07c4ae0bc20fffb8a6745d09379c",
+        "bytes": 1071438
+      },
+      "size_bytes": 1071438
+    },
+    "quickstart/helena_gpu_quickstart.ipynb": {
+      "sha256": {
+        "sha256": "bdc5c91ecc6828ce4885f9adc1a0df1bd025a5d801095d30399a63685df368dc",
+        "bytes": 1069335
+      },
+      "size_bytes": 1069335
+    },
+    "quickstart/leha_benchmark_reference.npz": {
+      "sha256": {
+        "sha256": "7a6dc590bfc89c2dfed0a0a1453794d5a3961123bf38058d6abc1528c1cac0be",
+        "bytes": 23566
+      },
+      "size_bytes": 23566
+    },
+    "quickstart/notebook_markdown.css": {
+      "sha256": {
+        "sha256": "38f775dd66aa3dc80c7a972343dd6756d00381372ab688df5716cab20401a6a2",
+        "bytes": 450
+      },
+      "size_bytes": 450
+    },
+    "quickstart/pgamma_plpl_reference.npz": {
+      "sha256": {
+        "sha256": "888d9093a7cdd00d5f05fcddb8b86c796715c912f5a89bb1d603375e00260eaf",
+        "bytes": 29698
+      },
+      "size_bytes": 29698
+    },
+    "quickstart/ps_benchmark_reference.npz": {
+      "sha256": {
+        "sha256": "7daa48295ff9cf4b9cbf8ebd1c7e6837bbdb47c258f8133a6202397750ac3c09",
+        "bytes": 24159
+      },
+      "size_bytes": 24159
+    },
+    "quickstart/quickstart_helpers.py": {
+      "sha256": {
+        "sha256": "d4f00d5b303d3afdc4e8744ebeef1efb795de9a3f2f551d95fbd1f14e5b04083",
+        "bytes": 45597
+      },
+      "size_bytes": 45597
+    },
+    "quickstart/ssc_benchmark_reference.npz": {
+      "sha256": {
+        "sha256": "eb4546fc045eedcd62f6480bcda1041564ad940f3407096ab8e20bceccf02de0",
+        "bytes": 25779
+      },
+      "size_bytes": 25779
+    },
+    "quickstart/syncool_am3_reference.npz": {
+      "sha256": {
+        "sha256": "68843b9ab5e81a1618005e45a4839f802c9ab7bdf9566eeab7e87a9d1313351d",
+        "bytes": 28896
+      },
+      "size_bytes": 28896
+    },
+    "src/helena/__init__.py": {
+      "sha256": {
+        "sha256": "f6211bc9c37a2182d2eb32607559c120aaf2764b4d4e7d461cdb4fd3c3c584ab",
+        "bytes": 310
+      },
+      "size_bytes": 310
+    },
+    "src/helena/autodiff/__init__.py": {
+      "sha256": {
+        "sha256": "ab87acaaf18a9f53ebed1c7f2da317c7e9ff053036af7f1fdb368922c7ede5d3",
+        "bytes": 317
+      },
+      "size_bytes": 317
+    },
+    "src/helena/autodiff/checkpoint.py": {
+      "sha256": {
+        "sha256": "8fa38343b2f3cb4cd5c7664fca182047b89b4cded7811502a7085c1a4be63fd0",
+        "bytes": 1094
+      },
+      "size_bytes": 1094
+    },
+    "src/helena/autodiff/implicit.py": {
+      "sha256": {
+        "sha256": "c455f08cc6f691f04c387fcf7d442e7bbdbb541f82787096ffc84054602e3d5d",
+        "bytes": 4400
+      },
+      "size_bytes": 4400
+    },
+    "src/helena/cascade.py": {
+      "sha256": {
+        "sha256": "0de3fc9bbd945bff03371d74576a8bb7c26a97f79c718a889e6c6e074c910726",
+        "bytes": 3599
+      },
+      "size_bytes": 3599
+    },
+    "src/helena/cli.py": {
+      "sha256": {
+        "sha256": "2829035e923aa1c23276cce71ffbda85e9e6ade3957bea9117be68f0f81a497b",
+        "bytes": 1937
+      },
+      "size_bytes": 1937
+    },
+    "src/helena/core/__init__.py": {
+      "sha256": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "size_bytes": 0
+    },
+    "src/helena/core/bethe_heitler.py": {
+      "sha256": {
+        "sha256": "a592233cec405c2bfa7394d2bd31884ff9fd4797b1edd594f050ceaf360f42f5",
+        "bytes": 20947
+      },
+      "size_bytes": 20947
+    },
+    "src/helena/core/compton.py": {
+      "sha256": {
+        "sha256": "65c944474ac05c7fb1124b736b60a73b8ee26bdb29a38e1fc70402bcf8140ae0",
+        "bytes": 6541
+      },
+      "size_bytes": 6541
+    },
+    "src/helena/core/constants.py": {
+      "sha256": {
+        "sha256": "515550866ccadc6f70af6a6a994b6241733ed78d8d1acca376b502b314e9a721",
+        "bytes": 1828
+      },
+      "size_bytes": 1828
+    },
+    "src/helena/core/contracts.py": {
+      "sha256": {
+        "sha256": "2f687b26d3a0d1dd27bf197865ab7dca61c501d00448fc925cef6761275e6ab8",
+        "bytes": 14859
+      },
+      "size_bytes": 14859
+    },
+    "src/helena/core/electron_positron_transport.py": {
+      "sha256": {
+        "sha256": "da7c5579b7bd42b88728e4db447fbc73395cdf87acd864d45df8617e8d6a9101",
+        "bytes": 4692
+      },
+      "size_bytes": 4692
+    },
+    "src/helena/core/gamma_gamma.py": {
+      "sha256": {
+        "sha256": "e6e570d3e89bc7eb9556b5b2bfd1410a4adf2c86ec84b2036fc11b7e2c9ef4b4",
+        "bytes": 7706
+      },
+      "size_bytes": 7706
+    },
+    "src/helena/core/gamma_gamma_pair_injection.py": {
+      "sha256": {
+        "sha256": "0aaaa2d2af5d1c1a505e1a1dc194b87e6b57faeb2fc53a3160a846c51e586d84",
+        "bytes": 8677
+      },
+      "size_bytes": 8677
+    },
+    "src/helena/core/inverse_compton_cooling.py": {
+      "sha256": {
+        "sha256": "3326d0d67f0b81bca19d916ace7bf9216f0f3b53d5b915f4e34294580daded36",
+        "bytes": 4648
+      },
+      "size_bytes": 4648
+    },
+    "src/helena/core/jax_backend/__init__.py": {
+      "sha256": {
+        "sha256": "bfefe94fab06801552f58ec7a4638044f9b451abf35451463fff6c562c3a945e",
+        "bytes": 27
+      },
+      "size_bytes": 27
+    },
+    "src/helena/core/jax_backend/chains/__init__.py": {
+      "sha256": {
+        "sha256": "d7ca01044e6fef63bd2b30b55c3976ad37f537971fb22ba2be79c0810971fd60",
+        "bytes": 29
+      },
+      "size_bytes": 29
+    },
+    "src/helena/core/jax_backend/chains/blob_intrinsic_radiation.py": {
+      "sha256": {
+        "sha256": "64911616449808e1de8fdb58ef1d8eb746ab3975475fa70930bd2d9d0a0bbb1f",
+        "bytes": 13435
+      },
+      "size_bytes": 13435
+    },
+    "src/helena/core/jax_backend/chains/gamma_gamma_internal_photon_field.py": {
+      "sha256": {
+        "sha256": "4e15ad803d8f9718ced5627fd8717a8d8b123c814929d530c13df279a24393af",
+        "bytes": 5145
+      },
+      "size_bytes": 5145
+    },
+    "src/helena/core/jax_backend/chains/gamma_gamma_pair_source.py": {
+      "sha256": {
+        "sha256": "03bcfdfb881bed1e151ab6a1b492658b4f5ba6c9aaa8a0e46db14bfd7a070e8c",
+        "bytes": 6752
+      },
+      "size_bytes": 6752
+    },
+    "src/helena/core/jax_backend/chains/gamma_gamma_transfer.py": {
+      "sha256": {
+        "sha256": "0e12ac945080873b9d57a0b9979d211bb89cc88626308d757565689cf176b70c",
+        "bytes": 4671
+      },
+      "size_bytes": 4671
+    },
+    "src/helena/core/jax_backend/chains/leptonic_radiation.py": {
+      "sha256": {
+        "sha256": "d187dd37ac0f9ca9ad2150ca4ccc23b9ae78df175c06c0300162357b632626d8",
+        "bytes": 9902
+      },
+      "size_bytes": 9902
+    },
+    "src/helena/core/jax_backend/chains/photomeson_chain.py": {
+      "sha256": {
+        "sha256": "1ac3dc197f33b8f25ad4e21fb2c98134b4cc8477cbf09b3eb6635c5102b06216",
+        "bytes": 11277
+      },
+      "size_bytes": 11277
+    },
+    "src/helena/core/jax_backend/chains/proton_secondary_lepton_transport.py": {
+      "sha256": {
+        "sha256": "01e4797fc75020bd40133a7ccc13161af749dae68d7d0b64a211b2fb82cb03e8",
+        "bytes": 3971
+      },
+      "size_bytes": 3971
+    },
+    "src/helena/core/jax_backend/chains/proton_secondary_leptons.py": {
+      "sha256": {
+        "sha256": "d12df03098fc9ab57fb6b6dcde29c2de14081ac72f637223ad668f862b3cc433",
+        "bytes": 4955
+      },
+      "size_bytes": 4955
+    },
+    "src/helena/core/jax_backend/chains/steady_state_electromagnetic_cascade.py": {
+      "sha256": {
+        "sha256": "9a75c22aa74f17c4d26940cc7ed661acf7a3107fd30de29b9028680bb45dd272",
+        "bytes": 66923
+      },
+      "size_bytes": 66923
+    },
+    "src/helena/core/jax_backend/chains/steady_state_hadronic_cascade.py": {
+      "sha256": {
+        "sha256": "dfb0cc582152822ad4c578af54f58908b5c7ab7b06752fdefdc55798e9ed8ff7",
+        "bytes": 53158
+      },
+      "size_bytes": 53158
+    },
+    "src/helena/core/jax_backend/chains/total_lepton_transport.py": {
+      "sha256": {
+        "sha256": "8e480e7786381b263ab3121b46dfab61ee19080316a6f0b890fcb55cc1e6edfb",
+        "bytes": 6176
+      },
+      "size_bytes": 6176
+    },
+    "src/helena/core/jax_backend/kernels/__init__.py": {
+      "sha256": {
+        "sha256": "65ea7f90c58859d0862f3f1b2ab72f5560585946f52ec5225c8077c2aebfbdf9",
+        "bytes": 27
+      },
+      "size_bytes": 27
+    },
+    "src/helena/core/jax_backend/kernels/bethe_heitler.py": {
+      "sha256": {
+        "sha256": "2a2bc9ef3c4a47376290e2d41735b716640baf73c10f0e7e17d0766044ed580e",
+        "bytes": 26095
+      },
+      "size_bytes": 26095
+    },
+    "src/helena/core/jax_backend/kernels/gamma_gamma_absorption.py": {
+      "sha256": {
+        "sha256": "dc8961a9be790839fd7ca0b41935ff749b817812062230d958dee6cb5324509e",
+        "bytes": 9942
+      },
+      "size_bytes": 9942
+    },
+    "src/helena/core/jax_backend/kernels/gamma_gamma_pair_injection.py": {
+      "sha256": {
+        "sha256": "c55b39534f42a1da1e8560a244883c7b332ca9f02410c0b71524a71a255446ce",
+        "bytes": 15302
+      },
+      "size_bytes": 15302
+    },
+    "src/helena/core/jax_backend/kernels/inverse_compton_cooling.py": {
+      "sha256": {
+        "sha256": "9584932aaafb83d6dde0404533a489bac860765247e98bd18481088e101f90ba",
+        "bytes": 5509
+      },
+      "size_bytes": 5509
+    },
+    "src/helena/core/jax_backend/kernels/muon_decay.py": {
+      "sha256": {
+        "sha256": "d00f65688054f86dc94729d6a03c1d624633c54430e4f87569dbed88d67e4d5c",
+        "bytes": 8744
+      },
+      "size_bytes": 8744
+    },
+    "src/helena/core/jax_backend/kernels/muon_timescales.py": {
+      "sha256": {
+        "sha256": "d4a1435dfab308754a2e8b71d791918a2ec3ef240908bcd66bef8b71f3c292e7",
+        "bytes": 3778
+      },
+      "size_bytes": 3778
+    },
+    "src/helena/core/jax_backend/kernels/photomeson.py": {
+      "sha256": {
+        "sha256": "ec8d94600c8b9c352c40b12e606c2a07152d01b1ff8501b9c426efc7bee5bc60",
+        "bytes": 18526
+      },
+      "size_bytes": 18526
+    },
+    "src/helena/core/jax_backend/kernels/pion_decay.py": {
+      "sha256": {
+        "sha256": "46dae6b9f722cb76988e92ef64901a040dbc8cca129818a458f12e1432de140d",
+        "bytes": 10744
+      },
+      "size_bytes": 10744
+    },
+    "src/helena/core/jax_backend/kernels/pion_timescales.py": {
+      "sha256": {
+        "sha256": "16c7b53c5a5bb98f1273e3a25daaf28b59b89e10e5b378b7d33685f95ee352b6",
+        "bytes": 3944
+      },
+      "size_bytes": 3944
+    },
+    "src/helena/core/jax_backend/kernels/proton_proton.py": {
+      "sha256": {
+        "sha256": "96eb39b3bd07857d73359e4d1ae5b81c0f582b73c38b1d2365e47edcfa49ddb5",
+        "bytes": 16525
+      },
+      "size_bytes": 16525
+    },
+    "src/helena/core/jax_backend/radiation/__init__.py": {
+      "sha256": {
+        "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+        "bytes": 1
+      },
+      "size_bytes": 1
+    },
+    "src/helena/core/jax_backend/radiation/inverse_compton.py": {
+      "sha256": {
+        "sha256": "a01f81fa5722f1666fc01ef24a1b505f98569f432dd641f88ac905e769958802",
+        "bytes": 5747
+      },
+      "size_bytes": 5747
+    },
+    "src/helena/core/jax_backend/radiation/photon_fields.py": {
+      "sha256": {
+        "sha256": "e3f23b3b7bd04a94fbbe73a01f138a7bff239d2129018c2178e6778ddc1b5f55",
+        "bytes": 5085
+      },
+      "size_bytes": 5085
+    },
+    "src/helena/core/jax_backend/radiation/ssa.py": {
+      "sha256": {
+        "sha256": "530aefbaad70fd0593a892faef7d939e516eaaa66d5d8bdb30e178d092c86472",
+        "bytes": 12585
+      },
+      "size_bytes": 12585
+    },
+    "src/helena/core/jax_backend/radiation/synchrotron.py": {
+      "sha256": {
+        "sha256": "821924705516b912c2ed4566bbb116fd45e529c5d962339ac57d97df13adb563",
+        "bytes": 8037
+      },
+      "size_bytes": 8037
+    },
+    "src/helena/core/jax_backend/transport/__init__.py": {
+      "sha256": {
+        "sha256": "9d56b8fca8d27a1c55812a518a92a69962f152da04c3adbc7b173a88ec3e2fae",
+        "bytes": 30
+      },
+      "size_bytes": 30
+    },
+    "src/helena/core/jax_backend/transport/electron_positron_transport.py": {
+      "sha256": {
+        "sha256": "d885cae1f81a2eb050f48161f33f68740bc583c6b171c761d68c13e6a92f63c0",
+        "bytes": 6608
+      },
+      "size_bytes": 6608
+    },
+    "src/helena/core/jax_backend/transport/muon_transport.py": {
+      "sha256": {
+        "sha256": "68bdc71f2b97a7c70882001528322ff988fa372da4f9057ac0bda664b038aef9",
+        "bytes": 5347
+      },
+      "size_bytes": 5347
+    },
+    "src/helena/core/jax_backend/transport/pion_transport.py": {
+      "sha256": {
+        "sha256": "4331a984e3a1973be5ec682c21de32076aaa2115be34d599706e3f6cbde1a438",
+        "bytes": 4902
+      },
+      "size_bytes": 4902
+    },
+    "src/helena/core/jax_backend/transport/proton_transport.py": {
+      "sha256": {
+        "sha256": "aea8fcf9c6a7ba0cf8a0682a4eaea1fe65939cee5b00255472d602da75ca857e",
+        "bytes": 7993
+      },
+      "size_bytes": 7993
+    },
+    "src/helena/core/jax_backend/transport/steady_state_finite_volume.py": {
+      "sha256": {
+        "sha256": "40f847c77668c647e565ab8c5822c149d09336cff5a6ba62c905e77f9408c059",
+        "bytes": 5178
+      },
+      "size_bytes": 5178
+    },
+    "src/helena/core/muon_decay.py": {
+      "sha256": {
+        "sha256": "90c26f53997343ec007be081da1fd7744ef4df6af4b28cea332bfca5fb17c7e2",
+        "bytes": 8629
+      },
+      "size_bytes": 8629
+    },
+    "src/helena/core/muon_timescales.py": {
+      "sha256": {
+        "sha256": "875aa8dbac52f56d05d9b3d83e6ff5d0c05a61551ac9e7895b495875508c603a",
+        "bytes": 4625
+      },
+      "size_bytes": 4625
+    },
+    "src/helena/core/muon_transport.py": {
+      "sha256": {
+        "sha256": "3b85e2c961e1708f7aef174dfc6cefe4cd0c97f04607bea84b155875742823f0",
+        "bytes": 3795
+      },
+      "size_bytes": 3795
+    },
+    "src/helena/core/observer.py": {
+      "sha256": {
+        "sha256": "9f22e38cebb3aa9ba98ac12284f09ee0ce92ca28feed44e997eb7821a852bbf5",
+        "bytes": 7017
+      },
+      "size_bytes": 7017
+    },
+    "src/helena/core/photomeson.py": {
+      "sha256": {
+        "sha256": "09857b70eeeeae5ef21a2ab5b4ff571552ccfae37b7d32fc82d0a34245827263",
+        "bytes": 16816
+      },
+      "size_bytes": 16816
+    },
+    "src/helena/core/photon_fields.py": {
+      "sha256": {
+        "sha256": "2741412870b6d4206ea6a3a8f7faf2b3016a771c7b5373edbc1a625464bea4fd",
+        "bytes": 7873
+      },
+      "size_bytes": 7873
+    },
+    "src/helena/core/pion_decay.py": {
+      "sha256": {
+        "sha256": "6f95a8e8904584356ee6801c597b3c76d37dbc291d0ba56976714e5c9ecb0dd1",
+        "bytes": 11390
+      },
+      "size_bytes": 11390
+    },
+    "src/helena/core/pion_timescales.py": {
+      "sha256": {
+        "sha256": "63df5b5bbd042e9ae19743d1e4fda6adba86027653eb939b4ab8ce404a5820b0",
+        "bytes": 4784
+      },
+      "size_bytes": 4784
+    },
+    "src/helena/core/pion_transport.py": {
+      "sha256": {
+        "sha256": "56a9d27ddfc1da462767fe53135f4ed3c6e3b28a8605747d6c387f7a3a0d416e",
+        "bytes": 3500
+      },
+      "size_bytes": 3500
+    },
+    "src/helena/core/propagation.py": {
+      "sha256": {
+        "sha256": "2260f33c4838c516471868d5193d41b86c3dd54ea2518906b0c1748880cafb14",
+        "bytes": 16483
+      },
+      "size_bytes": 16483
+    },
+    "src/helena/core/proton_timescales.py": {
+      "sha256": {
+        "sha256": "f43f598f6c4abc585d0376ac92c6d69ec05f2d90dd327e268b90e097833d1a3e",
+        "bytes": 3059
+      },
+      "size_bytes": 3059
+    },
+    "src/helena/core/proton_transport.py": {
+      "sha256": {
+        "sha256": "8d6e4f2a7ddb697bb9e387032f1eb85eaf0a2cebb878913a5a0b368ea3efe4dc",
+        "bytes": 4242
+      },
+      "size_bytes": 4242
+    },
+    "src/helena/core/ssa.py": {
+      "sha256": {
+        "sha256": "dfaa19cedbe0b48d8ed732d0b22d4ddfa8ceb19b09222e01e944444bb7768710",
+        "bytes": 12303
+      },
+      "size_bytes": 12303
+    },
+    "src/helena/core/steady_state_finite_volume.py": {
+      "sha256": {
+        "sha256": "5d3ece8f7207f697aa00a90d1a9846f6ac492849bdcd8a68c50dcbb648234b2a",
+        "bytes": 5021
+      },
+      "size_bytes": 5021
+    },
+    "src/helena/core/steady_state_transport.py": {
+      "sha256": {
+        "sha256": "dcba4e69fd5d47288e42f3c4cfdfa70753e6bebb3edcf44fffbcb50a90f94894",
+        "bytes": 5626
+      },
+      "size_bytes": 5626
+    },
+    "src/helena/core/synchrotron.py": {
+      "sha256": {
+        "sha256": "2e8e63d4e6f9b5cb6c6a0aa348c3bab4271901d02e71714f391a90d0f0531c24",
+        "bytes": 24291
+      },
+      "size_bytes": 24291
+    },
+    "src/helena/core/tables.py": {
+      "sha256": {
+        "sha256": "3f90da090fa5588a623409fb8f6791bb962e6c54b4c3c6e66c2d75c7b6bc3390",
+        "bytes": 2589
+      },
+      "size_bytes": 2589
+    },
+    "src/helena/diagnostics.py": {
+      "sha256": {
+        "sha256": "4e876481ce7c9be9be546d29a21dca7c73ef3897b7dcd6607dcba7dd9ebbc504",
+        "bytes": 13839
+      },
+      "size_bytes": 13839
+    },
+    "src/helena/fitting/__init__.py": {
+      "sha256": {
+        "sha256": "8cfe8b4b6ffd9ec118368e1625b36f483b26665e3dd68a7df485116eafa03f47",
+        "bytes": 1282
+      },
+      "size_bytes": 1282
+    },
+    "src/helena/fitting/core.py": {
+      "sha256": {
+        "sha256": "3a87be1280480e6c031edc0c23d7e26dad54c9dd67701ecd6c7ab5612f51d466",
+        "bytes": 29803
+      },
+      "size_bytes": 29803
+    },
+    "src/helena/fitting/public.py": {
+      "sha256": {
+        "sha256": "0a7a45d8549dcb54abe2241bac097cc742daff52e23ae913bbc9d4fedccbe238",
+        "bytes": 13892
+      },
+      "size_bytes": 13892
+    },
+    "src/helena/fitting/real_data.py": {
+      "sha256": {
+        "sha256": "cf49764c9713b1c9e7ebd8a7c2c9b1ebc76dca9fce34a72c606396dfcf5b729f",
+        "bytes": 17441
+      },
+      "size_bytes": 17441
+    },
+    "src/helena/model.py": {
+      "sha256": {
+        "sha256": "f78e31e1e48de0936ddb808f0a7a03fd6f56db4136f0f87f42dd957f49983642",
+        "bytes": 17098
+      },
+      "size_bytes": 17098
+    },
+    "src/helena/models/__init__.py": {
+      "sha256": {
+        "sha256": "781445af4e9673cd8584ca837fd2049d491c62f91c7ad3de604bf99ee6964f73",
+        "bytes": 568
+      },
+      "size_bytes": 568
+    },
+    "src/helena/models/c513.py": {
+      "sha256": {
+        "sha256": "24ecba257a9e41655f3826351e64dc3dbe60acf91e944aaaf346666b201118ff",
+        "bytes": 56276
+      },
+      "size_bytes": 56276
+    },
+    "src/helena/parameters.py": {
+      "sha256": {
+        "sha256": "5232233827712f1fdf0796692584e5c3756ef9c40c8e63bcee0c10f8c20a0452",
+        "bytes": 2466
+      },
+      "size_bytes": 2466
+    },
+    "src/helena/physics.py": {
+      "sha256": {
+        "sha256": "fb3f2bbbda6070b049e1ba4bbcc85dced27fe9338801024583c7ca251e5dfa95",
+        "bytes": 20012
+      },
+      "size_bytes": 20012
+    },
+    "src/helena/runtime.py": {
+      "sha256": {
+        "sha256": "b5d7c4c959bdf75863dfd0ae05063fd18ecbc99aa89b4beaaf42731b62152fad",
+        "bytes": 1933
+      },
+      "size_bytes": 1933
+    },
+    "src/helena/runtime_cache.py": {
+      "sha256": {
+        "sha256": "3ebe76b0ea176a8f0b818cfbdc7db75d131a009aaceea925eb154ee317535486",
+        "bytes": 21554
+      },
+      "size_bytes": 21554
+    },
+    "src/helena/sensitivity.py": {
+      "sha256": {
+        "sha256": "6c2ae4a06478f0eb6e0f1602b429505186351247ac3ab4523a728ae11d290f53",
+        "bytes": 5798
+      },
+      "size_bytes": 5798
+    },
+    "src/helena/transport.py": {
+      "sha256": {
+        "sha256": "6d64b8be7d6e4a0a4343e800734f449ce97a351ef2893362339b8632bc154d3f",
+        "bytes": 980
+      },
+      "size_bytes": 980
+    },
+    "tests/data/n01_txs_diagnostics.json": {
+      "sha256": {
+        "sha256": "6755f4baa2a5ee27824fc701ace0927e5a7d63c06d23cfe81d8d2ab5fe4f9276",
+        "bytes": 9356
+      },
+      "size_bytes": 9356
+    },
+    "tests/test_bethe_heitler_persistent_cache.py": {
+      "sha256": {
+        "sha256": "c3f442a7fc3c8517a134fce90ec06dc23da75c00e36033a9e7b8f0e68df44784",
+        "bytes": 7470
+      },
+      "size_bytes": 7470
+    },
+    "tests/test_cache_release_contract.py": {
+      "sha256": {
+        "sha256": "b0f75705554bd1e8d6db8dce9ee76f2d52a946fc168e221a38709c0ed6ef2b38",
+        "bytes": 12288
+      },
+      "size_bytes": 12288
+    },
+    "tests/test_import.py": {
+      "sha256": {
+        "sha256": "dfa81e2a313e267cbeccb78e4ca54acaefb140b75c9dbd55e74abfff76c8cf6c",
+        "bytes": 352
+      },
+      "size_bytes": 352
+    },
+    "tests/test_model_bound_derivative_target.py": {
+      "sha256": {
+        "sha256": "b8e29432ea4b8a54c38328e1faa666724eb398a06daf40e7bf2076457c0a76f3",
+        "bytes": 4895
+      },
+      "size_bytes": 4895
+    },
+    "tests/test_parameter_selection.py": {
+      "sha256": {
+        "sha256": "625ca0d273bf494d67a7765b634f6b6a66f51c4148d6bca30ebbd0904018bbab",
+        "bytes": 4645
+      },
+      "size_bytes": 4645
+    },
+    "tests/test_public_dataset.py": {
+      "sha256": {
+        "sha256": "d4c06837a4c44c8f3020c5599130aa826e3e132800ef235c77fd4e17dcc042d5",
+        "bytes": 2664
+      },
+      "size_bytes": 2664
+    },
+    "tests/test_public_diagnostics.py": {
+      "sha256": {
+        "sha256": "89ca7ff80a3ee65f4f4d788c0d4b72bb3638950e2f0416d1834d89be2f9624a8",
+        "bytes": 13976
+      },
+      "size_bytes": 13976
+    },
+    "tests/test_public_ebl.py": {
+      "sha256": {
+        "sha256": "b51400e0d4145ec0c6c1879a68c2cde4f764f19703b84d94c1673873ce79b097",
+        "bytes": 4111
+      },
+      "size_bytes": 4111
+    },
+    "tests/test_public_fit.py": {
+      "sha256": {
+        "sha256": "28246b1ece8319947d4f566aacb48fad186397a8ab703af76a968a729fe06807",
+        "bytes": 10338
+      },
+      "size_bytes": 10338
+    },
+    "tests/test_public_foundations.py": {
+      "sha256": {
+        "sha256": "250a958ac1d3db4c576c53acea9f680a8361a123532aebe8b7fba8f6fbfc7875",
+        "bytes": 5046
+      },
+      "size_bytes": 5046
+    },
+    "tests/test_public_model.py": {
+      "sha256": {
+        "sha256": "ea1bb87d03cc37196b67b803709b0d43fe7646937b151877b5f0bc1064e6ab54",
+        "bytes": 11026
+      },
+      "size_bytes": 11026
+    },
+    "tests/test_public_sensitivity.py": {
+      "sha256": {
+        "sha256": "a9f4c0dccf0e5f1954e9433e15c61f43cdbdc3bf5aad1bbf346169ff663fa079",
+        "bytes": 6002
+      },
+      "size_bytes": 6002
+    },
+    "tests/test_public_standalone_physics.py": {
+      "sha256": {
+        "sha256": "36304cae1800730b541a6408fb0a7a6850932e459b04554c4b3f11d6c9f70604",
+        "bytes": 17873
+      },
+      "size_bytes": 17873
+    },
+    "tests/test_source_resolved_photon_components.py": {
+      "sha256": {
+        "sha256": "6a6a704cb8f115982d97a380a3be11d6e03005b49037edc9d7a68ea742530a93",
+        "bytes": 7477
+      },
+      "size_bytes": 7477
+    },
+    "tests/test_txs0506_dense_example.py": {
+      "sha256": {
+        "sha256": "4e2eac28ff5ae5cdf322ebaaf204d2e6ec7e8fb78da8f2fca9653feabed525e1",
+        "bytes": 2804
+      },
+      "size_bytes": 2804
+    }
+  },
+  "external_bethe_heitler_resource": {
+    "repository": "https://github.com/LiYangji/HELENA-resources",
+    "tag": "bh-c513-v1",
+    "commit": "1f367127e9693fc7c05d9abcbb41a2a996d2b068",
+    "release_url": "https://github.com/LiYangji/HELENA-resources/releases/tag/bh-c513-v1",
+    "archive_url": "https://github.com/LiYangji/HELENA-resources/releases/download/bh-c513-v1/helena_bethe_heitler_c513_responses_ka2008_born_omega_lt_600_v1.zip",
+    "size_bytes": 445233688,
+    "sha256": "a3abbcf77452bcc5015e848130a463e691d717954150611b47f8f19569bd88d4",
+    "software_includes_large_response_files": false
+  },
+  "validation": {
+    "basis": "Existing recorded checks of this implementation; no scientific calculation was rerun for this publication preparation.",
+    "recorded_example_execution_date": "2026-09-06",
+    "official_notebooks": {
+      "cpu": {
+        "path": "quickstart/helena_cpu_quickstart.ipynb",
+        "authored_code_cells_passed": 10,
+        "authored_code_cells_expected": 10,
+        "execution_passed": true,
+        "saved_outputs_preserved": true
+      },
+      "gpu": {
+        "path": "quickstart/helena_gpu_quickstart.ipynb",
+        "authored_code_cells_passed": 10,
+        "authored_code_cells_expected": 10,
+        "execution_passed": true,
+        "saved_outputs_preserved": true
+      },
+      "txs": {
+        "path": "examples/txs0506_2017/txs0506_2017_canonical.ipynb",
+        "authored_code_cells_passed": 9,
+        "authored_code_cells_expected": 9,
+        "execution_passed": true,
+        "saved_outputs_preserved": true
+      }
+    },
+    "reference_environment": {
+      "python": "3.11.15",
+      "jax": "0.10.2",
+      "jaxlib": "0.10.2",
+      "jax_x64": true
+    },
+    "scientific_source_matches_recorded_execution": true,
+    "approved_diagnostic_correction": "N01 uses the symmetric log-Gaussian detection subset for local photon Gauss-Newton diagnostics.",
+    "external_response_acquisition": "Existing anonymous installed-package acquisition, checksum/member checks, and local-cache/no-build guards remain applicable to unchanged binding/downloader code.",
+    "limitations": [
+      "Validation covers documented finite configurations and discrete algorithms, not all source states or continuum convergence.",
+      "The maintained inference and differentiation path is photon-only; neutrino spectra are post-fit predictions, not an event-level neutrino likelihood.",
+      "Local diagnostics do not establish global identifiability, calibrated parameter intervals, or a unique TXS interpretation.",
+      "Historical operator-suite evidence gaps (U06), AM3 archive-identity evidence gaps (U08), and missing historical optimizer trajectories are not closed by publication.",
+      "The author accepted the observed-data snapshot and documented error approximations for a scope-limited application example; unknown measurement confidence conventions remain unknown.",
+      "The author directs publication with unchanged numerical files and source attribution. This is not new evidence of third-party permission; previously unverified source-specific rights information remains unverified."
+    ]
+  },
+  "historical_manifest": {
+    "path": "FREEZE_MANIFEST.json",
+    "role": "Unmodified historical evidence, not current file/package identities or current release readiness."
+  },
+  "data_attribution": {
+    "documentation": "examples/README.md#data-sources-and-attribution",
+    "software_license_does_not_grant_additional_third_party_rights": true,
+    "release_decision": "Author-directed publication of unchanged numerical examples; attribution is not a license.",
+    "known_applicable_benchmark_license": "CC-BY-4.0 for published material from 10.5281/zenodo.17177642",
+    "unverified_rights_information_preserved": true
+  }
+}

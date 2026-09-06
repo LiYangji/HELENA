@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "Please cite the HELENA software version used in your work."
+type: software
+title: "HELENA: High-Energy Lepto-hadronic Emission and Neutrino Analysis"
+version: 0.1.0
+date-released: 2026-09-06
+authors:
+  - family-names: Li
+    given-names: Yangji
+repository-code: "https://github.com/LiYangji/HELENA"
+license: BSD-3-Clause
+abstract: >-
+  HELENA calculates coupled particle transport and photon and neutrino emission
+  in a one-zone steady-state jet model. Its maintained inference and
+  differentiation path is photon-only; neutrino spectra are post-fit predictions.
+  BSD-3-Clause applies to HELENA software, not additional rights in third-party
+  example data or reference products; source-specific notices and attribution
+  are documented in examples/README.md.

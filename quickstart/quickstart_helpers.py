@@ -48,8 +48,7 @@ BROADBAND_FREQUENCIES_HZ = (
 
 _TABLE_STYLE = """
 <style>
-.jp-RenderedHTMLCommon, .text_cell_render, .jp-MarkdownOutput,
-.helena-table, .helena-table * { font-family: "DejaVu Serif", serif !important; }
+.helena-table { font-family: "DejaVu Serif", serif; }
 .helena-table { border-collapse: collapse; margin: 0.5rem 0 1rem 0; }
 .helena-table th, .helena-table td {
   border-bottom: 1px solid #b8b8b8; padding: 0.28rem 0.65rem;
@@ -102,7 +101,8 @@ def setup_quickstart_style():
             "axes.unicode_minus": False,
         }
     )
-    display(HTML(_TABLE_STYLE))
+    markdown_css = Path(__file__).with_name("notebook_markdown.css").read_text(encoding="utf-8")
+    display(HTML(_TABLE_STYLE + "<style>" + markdown_css + "</style>"))
     return {"family": REQUESTED_FONT, "mathtext": "stix", "variants": variants}
 
 

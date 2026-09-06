@@ -175,6 +175,8 @@ def test_manifest_identity_and_mocked_cli_fetch(tmp_path, monkeypatch, capsys):
 
 
 def test_unbound_official_resource_never_accesses_network(tmp_path, monkeypatch):
+    monkeypatch.setitem(cache_module.OFFICIAL_BH_CACHE_RESOURCE["archive"], "url", None)
+    monkeypatch.setitem(cache_module.OFFICIAL_BH_CACHE_RESOURCE["archive"], "sha256", None)
     assert cache_module.OFFICIAL_BH_CACHE_RESOURCE["archive"]["url"] is None
     assert cache_module.OFFICIAL_BH_CACHE_RESOURCE["archive"]["sha256"] is None
 
@@ -220,6 +222,39 @@ def test_fetch_rejects_bad_archive_and_interruption_atomically(tmp_path, monkeyp
         fetch_official_bethe_heitler_cache(interrupted_destination)
     assert not interrupted_destination.exists()
     assert not list(tmp_path.glob(".*-fetch-*"))
+
+
+@pytest.mark.parametrize(
+    "extra", ["duplicate", "directory", "traversal", "unexpected", "missing"]
+)
+def test_fetch_requires_exact_archive_members(tmp_path, monkeypatch, extra):
+    resource, _, payload = _mock_resource()
+    buffer = BytesIO()
+    with ZipFile(buffer, "w", compression=ZIP_STORED) as bundle:
+        for name, content in payload.items():
+            if extra != "missing" or name.endswith(".json"):
+                bundle.writestr(name, content)
+        if extra == "duplicate":
+            name = next(iter(payload))
+            with pytest.warns(UserWarning, match="Duplicate name"):
+                bundle.writestr(name, payload[name])
+        elif extra == "directory":
+            bundle.writestr("unexpected/", b"")
+        elif extra == "traversal":
+            bundle.writestr("../escape.txt", b"outside")
+        elif extra == "unexpected":
+            bundle.writestr("README.txt", b"extra")
+    archive_bytes = buffer.getvalue()
+    resource["archive"]["sha256"] = sha256(archive_bytes).hexdigest()
+    monkeypatch.setattr(cache_module, "OFFICIAL_BH_CACHE_RESOURCE", resource)
+    monkeypatch.setattr(
+        cache_module.urllib.request, "urlopen", lambda *_a, **_k: BytesIO(archive_bytes)
+    )
+    destination = tmp_path / "cache"
+    with pytest.raises(BetheHeitlerResponseCacheInvalid, match="file manifest mismatch"):
+        fetch_official_bethe_heitler_cache(destination)
+    assert not destination.exists()
+    assert not list(tmp_path.iterdir())
 
 
 def test_installed_resource_rejects_wrong_version_and_corruption(

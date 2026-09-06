@@ -1,76 +1,73 @@
 # HELENA
 
-**HELENA — High-Energy Lepto-hadronic Emission and Neutrino Analysis**
-
-HELENA is a differentiable one-zone lepto-hadronic framework for high-energy
-emission, neutrino production, SED fitting, and parameter-sensitivity analysis.
-It is research software: the validated configurations and diagnostics are
-narrower than the full parameter space exposed by the kernels.
-
-## Current status
-
-The repository contains the NumPy/reference physics and a differentiable JAX
-backend. Implemented paths include electron/positron, proton, pion, and muon
-transport; synchrotron, inverse-Compton, and synchrotron-self-absorption
-processes; photomeson, proton-proton, and Bethe-Heitler interactions;
-gamma-gamma absorption and pair injection; and steady electromagnetic and
-hadronic cascades. Persistent response caching, a likelihood/fitting
-foundation, and experimental checkpointed and implicit autodiff strategies are
-also present.
-
-These components have focused numerical and physics checks, but this is not a
-claim that every parameter combination or end-to-end scientific use case is
-validated. Current production model execution lives mainly under
-``src/helena/core/jax_backend``.
+HELENA (High-Energy Lepto-hadronic Emission and Neutrino Analysis) calculates
+coupled particle transport and photon and neutrino emission in a homogeneous,
+isotropic, one-zone steady-state jet model. Its maintained differentiable
+inference path fits broadband photons; flavor-resolved neutrino spectra are
+post-fit predictions from the same coupled source model.
 
 ## Installation and device setup
 
-HELENA requires Python 3.11 or newer. A CPU installation from this release
-tree is:
+HELENA requires Python 3.11 or newer. Install v0.1.0 from the tagged source:
 
 ```bash
-python -m pip install --upgrade pip
-python -m pip install .
+python -m pip install "https://github.com/LiYangji/HELENA/archive/refs/tags/v0.1.0.zip"
 ```
 
-JAX is a runtime dependency, and the default package installation supports its
-CPU backend. For accelerator support, install the matching JAX build for the
-platform by following the official JAX installation guide before installing
-HELENA. HELENA does not maintain a second GPU API: select execution before
-model construction with `configure(device="auto"|"cpu"|"gpu")`.
+Alternatively, download the wheel from the
+[v0.1.0 Release](https://github.com/LiYangji/HELENA/releases/tag/v0.1.0)
+and install it with `python -m pip install helena_astro-0.1.0-py3-none-any.whl`.
+These instructions do not require a PyPI release.
 
-The optional EBL provider and MIGRAD optimizer are installed independently:
+The default JAX dependency supports CPU execution. For a GPU, first install
+the platform-appropriate JAX build using the
+[official instructions](https://docs.jax.dev/en/latest/installation.html).
+CPU and GPU share one API: call `configure(device="cpu")`, `"gpu"`, or
+`"auto"` before constructing a model. `configure` enables and checks JAX x64
+and rejects an explicitly requested unavailable device. The recorded example
+environment used Python 3.11.15 and JAX/JAXLIB 0.10.2; other combinations are
+not covered by that execution evidence.
+
+From an extracted tagged source tree, the existing optional EBL provider and
+MIGRAD optimizer can be installed with:
 
 ```bash
 python -m pip install ".[ebl]"
 python -m pip install ".[migrad]"
 ```
 
-Contributors can install the test and lint tools with:
+The TXS example requires `ebl`. Notebook software is a user-selected
+environment dependency, not a HELENA runtime dependency. Contributors can
+install the existing test/lint tools with `python -m pip install -e ".[dev]"`.
 
-```bash
-python -m pip install -e ".[dev]"
-```
+## Quick start
 
-Scientific execution requires JAX x64. `configure` enables and verifies this
-contract and fails rather than silently falling back from an explicitly
-requested unavailable device.
+Download and extract the tagged source archive to obtain the notebook
+materials; installing the wheel alone does not provide the example tree.
+Keep the notebooks, helpers, CSS, reference files, and data in their original
+relative layout, and select a Jupyter kernel from the installation environment.
+
+- [CPU Quickstart](quickstart/helena_cpu_quickstart.ipynb)
+- [GPU Quickstart](quickstart/helena_gpu_quickstart.ipynb)
+- [TXS 0506+056 canonical example](examples/txs0506_2017/txs0506_2017_canonical.ipynb)
+
+These three official notebooks retain genuine saved outputs. The
+[example index](examples/README.md) records data qualifications and reference
+attribution. Before running BH-enabled sections, acquire the separate
+validated response resource as described below.
+
+For example-data sources, processing notes, and attribution, see
+[Data sources and attribution](examples/README.md#data-sources-and-attribution).
 
 ## Bethe--Heitler cache lifecycle
 
-The release contract is:
-
-```text
-install HELENA -> helena cache fetch -> normal HELENA forward
-```
-
-The approximately 425 MiB validated cache is intentionally not bundled in the
-Python package. Manage it with:
+The approximately 445 MB (425 MiB) validated response archive is not bundled
+in the software. After installing HELENA, run:
 
 ```bash
+helena cache fetch
 helena cache path
 helena cache status
-helena cache fetch
 ```
 
 All three commands accept `--cache-dir PATH` for HPC, offline, or shared
@@ -84,82 +81,37 @@ storage. Resolution order is an explicit `cache_dir`/`--cache-dir`, then
 `fetch` verifies the package-owned resource manifest and archive SHA-256 before
 an atomic install. For an offline system, fetch on a connected system, copy the
 complete cache directory, and select it with `HELENA_CACHE_DIR` or
-`OneZoneModel(..., cache_dir=...)`. Normal model construction and forward calls
+`OneZoneModel(..., cache_dir=...)`. A one-time `fetch --cache-dir PATH` does not
+configure later model runs; select the same directory explicitly or through
+`HELENA_CACHE_DIR`. Normal model construction and forward calls
 only discover and validate local compatible entries: they never download or
 silently rebuild them, and a miss fails explicitly.
 
-This release candidate contains the final validated file identities, but the
-official release-asset URL and archive checksum are not yet published. Until
-that single binding is filled, `helena cache fetch` fails with a clear resource
-unavailable error; no URL is guessed.
+The package binds the version-specific ZIP from the
+[BH C513 v1 resource release](https://github.com/LiYangji/HELENA-resources/releases/tag/bh-c513-v1).
+For manual installation, download its ZIP and `.sha256` attachment, and verify
+the complete ZIP against SHA256
+`a3abbcf77452bcc5015e848130a463e691d717954150611b47f8f19569bd88d4`
+(for example, with `sha256sum -c` and the checksum filename). Extract all six
+files directly into the directory reported by `helena cache path`, without an
+extra enclosing folder, then run `helena cache status`. If using a custom
+directory, pass the same `--cache-dir PATH` to both commands or set
+`HELENA_CACHE_DIR`.
 
-## Official examples
+## Scope, documentation, and citation
 
-The v0.1.0 public examples are exactly:
+See the [public API contract](Public_API/P7B_freeze_contract.md),
+[physics assumptions](docs/physics_assumptions.md), and
+[units and conventions](docs/units_and_conventions.md). Photon-component
+decomposition and local photon-Jacobian/Gauss--Newton diagnostics do not
+establish global identifiability or a unique physical interpretation. v0.1.0
+does not provide event-level neutrino inference or time-dependent evolution.
 
-1. [`quickstart/helena_cpu_quickstart.ipynb`](quickstart/helena_cpu_quickstart.ipynb)
-2. [`quickstart/helena_gpu_quickstart.ipynb`](quickstart/helena_gpu_quickstart.ipynb)
-3. [`examples/txs0506_2017/txs0506_2017_canonical.ipynb`](examples/txs0506_2017/txs0506_2017_canonical.ipynb)
+[RELEASE_MANIFEST_v0.1.0.json](RELEASE_MANIFEST_v0.1.0.json) identifies the
+current files, external response resource, and bounded validation coverage.
+`FREEZE_MANIFEST.json` is preserved historical evidence: its old hashes and
+pending-publication statements are not the current release identity.
 
-The CPU and GPU quickstarts use the same calculations and public names. The
-TXS notebook is the sole public real-source workflow and requires the `ebl`
-extra for its configured Earth-propagation step. Notebook software itself is a
-user-selected environment dependency rather than a HELENA runtime dependency.
-
-## Public API
-
-The frozen v0.1 API has one CPU/GPU-neutral root workflow:
-
-```python
-from helena import (
-    FitResult,
-    ForwardResult,
-    ModelConfig,
-    OneZoneModel,
-    SEDDataset,
-    configure,
-    fit,
-)
-```
-
-The flat advanced namespaces are `helena.physics`, `helena.transport`,
-`helena.cascade`, `helena.sensitivity`, and `helena.diagnostics`.
-`OneZoneModel.forward()` is the only complete Public lepto-hadronic forward.
-Its C513 implementation, prepared responses, solver state, and validation
-collectors remain internal. The exact frozen boundary is recorded in
-[the P7B contract](Public_API/P7B_freeze_contract.md).
-
-`ForwardResult.components` includes legacy high-energy fields, escaped
-broadband process groups, additive source-resolved photon groups, and
-mechanism-resolved synchrotron and inverse-Compton fields. New displays should
-use **Primary-electron inverse Compton** and the
-`primary_electron_inverse_compton` key; the compatibility SSC name is retained
-only as a frozen result key.
-
-## Repository structure
-
-```text
-src/helena/
-├── core/               # reference kernels and shared physics
-│   └── jax_backend/    # differentiable kernels and production chains
-├── models/             # validated package-owned scenarios
-├── fitting/            # datasets, likelihood, and optimizer boundary
-├── autodiff/           # experimental differentiation strategies
-├── cli.py              # cache resource-management commands
-└── runtime_cache.py    # persistent response cache support
-```
-
-See [the example index](examples/README.md), [physics assumptions](docs/physics_assumptions.md),
-and [units and conventions](docs/units_and_conventions.md).
-
-## License
-
-HELENA is distributed under the BSD-3-Clause license. See [LICENSE](LICENSE).
-
-## Conventions and scientific caution
-
-Internal quantities use cgs units unless a public function says otherwise.
-Physics correctness, explicit frame conventions, conservation diagnostics, and
-numerical stability take precedence over fitting convenience or performance.
-Real-source fits do not by themselves validate a physical model; energy,
-cooling, size, and dynamical constraints must also be checked.
+Software citation metadata are in [CITATION.cff](CITATION.cff). HELENA software
+uses [BSD-3-Clause](LICENSE); third-party data and benchmark products retain
+their own terms, documented in the [example index](examples/README.md).

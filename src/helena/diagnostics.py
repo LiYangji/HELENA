@@ -80,6 +80,8 @@ def gauss_newton(jacobian_result, dataset):
     Gaussian detections are accepted, with
     ``W = diag(1 / sigma_log**2)`` and ``sigma_log = sigma_F / F``.
     Context and excluded rows remain inactive under the maintained P4 mask.
+    Rank/status describe numerical conditioning, not physical identifiability.
+    Undefined correlations remain NaN, including for otherwise finite inputs.
     """
 
     # Local imports avoid pulling the fitting facade into low-level physics imports.

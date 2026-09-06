@@ -1,0 +1,2421 @@
+{
+  "schema": "helena.photon_data_provenance",
+  "schema_version": "1.0.0",
+  "reviewed_date": "2026-09-05",
+  "scope": "Descriptive provenance for the unchanged packaged TXS 0506+056 photon snapshot; not a new reduction, statistical calibration, or source-model calculation.",
+  "path_base": "Repository root; all repository_path values below are relative to that root.",
+  "adopted_csv": {
+    "repository_path": "examples/txs0506_2017/data/txs0506_2017_curated.csv",
+    "sha256": "dc6d635f885c521048ee1a14634dff032867960bf034c1fb41ee2679afe6774d",
+    "rows": 780
+  },
+  "frozen_raw": {
+    "repository_path": "examples/txs0506_2017/data/txs0506_public_raw.ecsv",
+    "sha256": "3075e7130b427ee00943e71f3437dda93803138f0ce0ca10ce8884b8d931b2e4",
+    "rows": 729,
+    "meaning": "Serialized SSDC snapshot, not original HTTP response bytes."
+  },
+  "row_identity": {
+    "indexing": "One-based data-row index, excluding the CSV header; row order is preserved.",
+    "id_rule": "adopted_csv.sha256 + ':' + row_index_1based",
+    "group_rule": "adopted_csv.sha256 + ':' + measurement_groups key",
+    "join_rule": "measurement_groups partition all 780 rows. ssdc_dataset_mapping is an overlapping source cross-reference for the 729 SSDC rows, not additional measurements. A source_key alone is not a unique row identifier."
+  },
+  "precedence": {
+    "descriptive": "Verified timing corrections and uncertainty qualifications in this file supersede the corresponding descriptive statements in the historical CSV/PROVENANCE.md.",
+    "numerical": "This file is not consumed by the canonical loader and does not override CSV values, roles, errors, or numerical inputs. Numerical reproduction uses the identified packaged CSV.",
+    "regeneration": "Original historical HTTP bytes/headers and parts of the extraction record are unavailable. Current archive re-downloads can differ; the packaged snapshot and regeneration from today's service are distinct reproducibility claims."
+  },
+  "counts": {
+    "fit": 49,
+    "constraint": 10,
+    "context": 714,
+    "exclude": 7,
+    "active": 59,
+    "symmetric_fit": 48,
+    "asymmetric_fit": 1,
+    "active_upper_limits_95_percent": 10,
+    "context_upper_limits_confidence_unknown": 5
+  },
+  "units": {
+    "energy": "eV; converted to erg with 1 eV = 1.602176634e-12 erg by the canonical notebook",
+    "frequency": "Hz; E = h nu with h = 4.135667696e-15 eV s",
+    "flux": "nu F_nu = E F_E, erg cm^-2 s^-1",
+    "time": "MJD days as recorded by each source; exposure and elapsed intervals are distinct",
+    "frame": "Observer-frame photon measurements; source-specific Galactic absorption/extinction corrections are described below. VHE measurements remain observed, not EBL-deabsorbed."
+  },
+  "sources": {
+    "science2018": {
+      "publication": "IceCube Collaboration et al. 2018, Science 361, eaat1378",
+      "doi": "10.1126/science.aat1378",
+      "url": "https://doi.org/10.1126/science.aat1378",
+      "table_version": "Author manuscript and supplement, arXiv:1807.08816v1",
+      "table_url": "https://arxiv.org/pdf/1807.08816v1",
+      "recorded_acquisition_url": "https://icecube.wisc.edu/wp-content/uploads/2021/01/detection-flaring-blazar.pdf"
+    },
+    "keivani2018": {
+      "publication": "Keivani et al. 2018, ApJ 864, 84",
+      "doi": "10.3847/1538-4357/aad59a",
+      "url": "https://doi.org/10.3847/1538-4357/aad59a",
+      "published_pdf": "https://par.nsf.gov/servlets/purl/10092741",
+      "cds_catalog": "J/ApJ/864/84",
+      "cds_doi": "10.26093/cds/vizier.18640084",
+      "recorded_acquisition_root": "https://cdsarc.cds.unistra.fr/ftp/J/ApJ/864/84/",
+      "xrt_original_table": "https://cdsarc.cds.unistra.fr/ftp/J/ApJ/864/84/table1.dat",
+      "xrt_verification_mirror": "https://vizier.cfa.harvard.edu/viz-bin/asu-tsv?-source=J/ApJ/864/84/table1&-out.all"
+    },
+    "middei2022": {
+      "publication": "Middei et al. 2022, MNRAS 514(3), 3179-3190",
+      "doi": "10.1093/mnras/stac1185",
+      "url": "https://doi.org/10.1093/mnras/stac1185",
+      "paper_text": "https://arxiv.org/html/2205.05089v1",
+      "product": "https://www.ssdc.asi.it/nustarblaz/",
+      "column_documentation": "https://www.ssdc.asi.it/nustarblaz/ounblaz.js",
+      "sed_product": "https://www.ssdc.asi.it/nustarblaz/sed_images/5BZBJ0509%2B0541_seddata.txt"
+    },
+    "ssdc": {
+      "product": "ASI/SSDC SED Builder",
+      "immediate_acquisition": "https://tools.ssdc.asi.it/SED-REST/rest/getData?ra=77.358185156&dec=5.693148283",
+      "recorded_retrieval_date": "2026-08-25",
+      "recorded_retrieval_date_status": "Recorded in packaged provenance; original HTTP response not retained.",
+      "tool_reference": "Stratta et al. 2011, arXiv:1103.0749",
+      "tool_reference_url": "https://arxiv.org/abs/1103.0749",
+      "source_link_coverage": {
+        "rows_with_original_bibliography_url": 49,
+        "rows_with_dataset_id_only": 680
+      },
+      "limitation": "Dataset IDs and recorded bibliography locators are preserved below. The tool citation does not supply missing per-dataset measurement papers."
+    }
+  },
+  "runtime_treatment": {
+    "repository_paths": [
+      "examples/txs0506_2017/txs0506_helpers.py",
+      "examples/txs0506_2017/txs0506_2017_canonical.ipynb",
+      "src/helena/fitting/public.py",
+      "src/helena/fitting/real_data.py",
+      "src/helena/diagnostics.py",
+      "examples/txs0506_2017/data/fetch_public_sed.py"
+    ],
+    "selection": "The helper preserves CSV row order. The notebook removes role=exclude before SEDDataset; the likelihood selects roles fit and constraint. The local diagnostic selects role=fit and statistic_type=gaussian (48 rows). Dates do not reselect runtime rows.",
+    "upstream_dates": "The historical extractor selects NuSTAR using SSDC dataset 14923 plus the exact stored start/stop, and selects the XRT fit point by MJD 58023.8535. Other XRT dates determine descriptive epoch labels. Published H.E.S.S./VERITAS roles are literal campaign constraints, not selected by their stored date strings.",
+    "order_and_identity": "The historical extractor sorts by frequency_hz and instrument; no deduplication is implemented. The canonical loader and dataset retain order. Instrument names affect plotting groups and undergo nonempty validation. Source locators/keys are provenance, not numerical weights.",
+    "symmetric_detection": "For an active gaussian row, the stored positive flux error is treated as a Gaussian scale and mapped to sigma_log = sigma_F/F. This first-order symmetric log-Gaussian approximation also sets the local diagnostic weights W=diag(1/sigma_log^2). It is not verification of a source's confidence convention or inter-bin independence.",
+    "asymmetric_detection": "The active XRT row uses the stored lower/upper errors to form log(F)-log(F-error_lower) and log(F+error_upper)-log(F). The existing continuous split-normal log-flux likelihood uses the side selected by the sign of log(model/F). It is excluded from the symmetric local diagnostic.",
+    "upper_limit": "The ten active 95% limits use the adopted null-centered one-sided Gaussian surrogate with sigma_eff=U/Phi^-1(0.95) and -log Phi((U-model)/sigma_eff). Stored zero error columns flag limits; they are not zero-uncertainty detections. This is not the instrument's count likelihood. Context limits are not assigned 95% confidence by this convention.",
+    "energy_bounds": "The model is sampled at central energy by log-log interpolation; horizontal errors do not perform bin integration or energy-response convolution and do not enter likelihood/diagnostic weights. They must be finite and nonnegative and the lower error must be smaller than central energy for dataset validation. The example helper displays active horizontal errors; the adopted paper Figure 5 omits horizontal error bars.",
+    "plotting": "Instrument/role/statistic labels control styles and active/context rendering. Vertical active errors are the stored flux errors. Upper-limit arrow stems are graphical lengths, not uncertainties. Context points are displayed without likelihood weight.",
+    "interpretation": "Campaign-centered, not strictly simultaneous. Neither the stored roles nor the accompanying documentation assert a uniform statistical error convention across instruments."
+  },
+  "uncertainty_conventions": {
+    "nublazar_sed": {
+      "classification": "unknown_source_convention_author_decision",
+      "source": "middei2022",
+      "locator": "Section 3; Figure 3; Section 4.1/Figure 10; official product column help and TXS SED ASCII header; SSDC dataset 14923",
+      "measurement": "44 NuBlazar spectral points for observation 90301618002, acquired through SSDC dataset 14923. Middei's pipeline constructs SEDs using the fitted spectrum and corrects Galactic absorption.",
+      "reported_error": "SSDC NufnuError, copied as equal positive lower/upper flux errors. The product SED header labels flux error but supplies no confidence definition.",
+      "confidence_level": null,
+      "interval_convention": null,
+      "relevant_parameter_count": null,
+      "statistical_systematic_split": null,
+      "covariance_available": false,
+      "distinction": "Official catalogue help labels fitted spectral-parameter and integrated-flux errors at 90%; Figure 10 describes integrated-light-curve errors at 68%. Neither establishes the convention for these individual SED bins.",
+      "adopted": "No confidence conversion; stored errors are used directly in symmetric_detection and in all 44 associated local-diagnostic weights.",
+      "energy_field": "SSDC FrequencyError is converted with h and stored symmetrically. It is the archive horizontal error/width field, not a verified Gaussian energy-calibration uncertainty.",
+      "decision": "Confirm the bin-error definition or explicitly approve the adopted diagonal scales and their limitations before data finalization. Do not divide all bins by a generic 90%-to-one-sigma factor."
+    },
+    "xrt_pivot": {
+      "classification": "documented_approximation_acceptability_pending",
+      "source": "keivani2018",
+      "locator": "Section 2.2; Table 1 and CDS table1",
+      "measurement": "0.3-10 keV power-law flux and photon index, converted to a 1 keV nu F_nu pivot.",
+      "reported_error": "Table 1 reports two-sided 90% flux/index intervals.",
+      "confidence_level": 0.9,
+      "interval_convention": "Published lower/upper parameter intervals; a joint flux-index contour and its relevant parameter count are not supplied for this conversion.",
+      "relevant_parameter_count": null,
+      "statistical_systematic_split": null,
+      "covariance_available": false,
+      "active_scalars": {
+        "mjd": 58023.8535,
+        "mjd_half_width": 0.066,
+        "exposure_ks": 4.9,
+        "photon_index": 2.43,
+        "index_error_lower": 0.12,
+        "index_error_upper": 0.12,
+        "band_flux": 3.51e-12,
+        "band_flux_error_lower": 2.9e-13,
+        "band_flux_error_upper": 3.2e-13
+      },
+      "transformation": "P(F,Gamma)=F*(2-Gamma)/(10^(2-Gamma)-0.3^(2-Gamma)) at 1 keV, with logarithmic limit F/ln(10/0.3) at Gamma=2. The extractor takes extrema over the four endpoint combinations of band flux and index, then divides the pivot offsets by Phi^-1(0.95)=1.6448536269514722.",
+      "adopted": "Asymmetric scales enter asymmetric_detection; no XRT row enters the 48-row local diagnostic.",
+      "assessment": "The published 90% statement and saved arithmetic are verified. A rectangle of marginal endpoints is not a measured joint 90% contour; dividing its nonlinear envelope by a normal quantile does not statistically calibrate the pivot errors.",
+      "decision": "Author acceptance of this approximation, or a separately authorized covariance/joint-spectrum-based correction and bounded impact check. No evidence in this check establishes a uniquely correct replacement."
+    },
+    "uvot_pivot": {
+      "classification": "unknown_source_convention_author_decision",
+      "source": "keivani2018",
+      "locator": "Section 2.6, Table 4, MJD 58023.8470; distinguish Table 2 and the plotted SED bands",
+      "measurement": "Extinction-corrected nu F_nu at 1e15 Hz: (34.80 +/- 3.13)e-12 erg cm^-2 s^-1.",
+      "reported_error": "Section 2.6 uses six-filter SED fits with flux, slope, and extinction; for single-filter estimates it combines counting and adopted SED-model uncertainty in quadrature. Table 4 does not separately specify the confidence definition of its quoted flux error.",
+      "confidence_level": null,
+      "interval_convention": null,
+      "relevant_parameter_count": null,
+      "fit_model_parameter_count": 3,
+      "statistical_systematic_split": "Extinction-model uncertainty is included in the SED analysis; no separable per-point statistical/systematic columns are supplied.",
+      "covariance_available": false,
+      "distinction": "Table 2 magnitude errors are explicitly one sigma; sampled SED bands encompass 90%. Neither statement is automatically the convention of the adopted Table 4 flux error. The paper does not add the estimated 12% Epoch-1 variability broadening.",
+      "adopted": "3.13e-12 is copied without rescaling into symmetric_detection and the local diagnostic.",
+      "decision": "Confirm the Table 4 flux-error definition or explicitly approve the adopted scale with this qualification."
+    },
+    "lat_pivot": {
+      "classification": "unknown_source_convention_author_decision",
+      "source": "keivani2018",
+      "locator": "Section 2.8, Epoch 1 power-law normalization",
+      "measurement": "K=(1.42 +/- 0.11)e-11 cm^-2 s^-1 MeV^-1 at E0=1.44 GeV; index 2.05 +/- 0.05.",
+      "reported_error": "Quoted normalization error from the broadband binned-likelihood power-law fit; no confidence definition for this particular scalar is given in the paragraph.",
+      "confidence_level": null,
+      "interval_convention": null,
+      "relevant_parameter_count": null,
+      "statistical_systematic_split": null,
+      "covariance_available": false,
+      "distinction": "The later 90% statement refers to separately refitted SED energy bins (or 95% limits), not explicitly to K at the pivot.",
+      "transformation": "nu F_nu = (1440 MeV)^2 K * 1.602176634e-6 erg/MeV; propagate the quoted K error by the same factor. Index and normalization covariance are not reconstructed.",
+      "adopted": "Stored flux 4.71762832493e-11 and error 3.65450081509e-12 enter symmetric_detection and the local diagnostic.",
+      "decision": "Confirm the scalar normalization-error convention or explicitly approve the adopted scale."
+    },
+    "agile_pivot": {
+      "classification": "unknown_source_convention_author_decision",
+      "source": "science2018",
+      "locator": "Supplement AGILE subsection, page S23 (PDF page 49)",
+      "measurement": "13-day window centered at MJD 58012.5: flux above 100 MeV (5.3 +/- 2.1)e-7 cm^-2 s^-1; reported 200 MeV energy-flux density (8.8 +/- 3.5)e-11 erg cm^-2 s^-1 for index -2.",
+      "reported_error": "Error from the specific campaign ML measurement; confidence and statistical/systematic split are not specified there.",
+      "confidence_level": null,
+      "interval_convention": null,
+      "relevant_parameter_count": null,
+      "statistical_systematic_split": null,
+      "covariance_available": false,
+      "distinction": "ATel 10801 is a different preliminary three-day measurement and does not establish this 13-day flux-error convention.",
+      "adopted": "The published 200 MeV value and error are copied directly into symmetric_detection and the local diagnostic, not rederived from rounded integral-flux scalars.",
+      "decision": "Confirm this measurement's error definition or explicitly approve the adopted scale. The relatively large fractional error also limits the first-order log-Gaussian approximation."
+    },
+    "magic_pivot": {
+      "classification": "documented_approximation_acceptability_pending",
+      "source": "science2018",
+      "locator": "Main text VHE spectrum, PDF page 8; MAGIC supplement",
+      "measurement": "Observed normalization K=(2.0 +/- 0.4)e-10 TeV^-1 cm^-2 s^-1 at E0=0.130 TeV.",
+      "reported_error": "The quoted normalization error is statistical only. The paper separately gives 11-18% normalization systematic uncertainty and an energy-scale systematic smaller than 15%.",
+      "confidence_level": null,
+      "interval_convention": "A numerical confidence level for the normalization error and a Gaussian interpretation of the systematic range are not explicitly specified by the cited passage.",
+      "relevant_parameter_count": null,
+      "statistical_systematic_split": "Statistical K error 0.4e-10; adopted systematic contribution 0.18*K, using the upper end of the reported range.",
+      "covariance_available": false,
+      "transformation": "F=E0^2*K*1.602176634; adopted sigma_F=E0^2*sqrt((0.4e-10)^2+(0.18*K)^2)*1.602176634. Stored horizontal error=0.15*130 GeV=19.5 GeV.",
+      "adopted": "The quadrature flux scale enters symmetric_detection and the local diagnostic. The 15% horizontal value is used for validation/display, not energy convolution, sampling, or weights.",
+      "assessment": "The algebra reproduces the stored values. Combining the upper-end systematic with the statistical term as a per-point Gaussian scale is an adopted approximation, not a published combined error. The 15% energy entry is a conservative descriptive choice, not an exact published Gaussian sigma or an energy-bin width.",
+      "decision": "Author acceptance of the flux-systematic treatment and unresolved normalization-error confidence; if changed, separately authorize an active-weight/diagnostic impact check."
+    }
+  },
+  "measurement_groups": {
+    "SSDC_exclude": {
+      "count": 7,
+      "row_indices_1based": [ 1, 2, 7, 9, 270, 732, 734 ],
+      "roles": {
+        "exclude": 7
+      },
+      "statistics": {
+        "gaussian": 7
+      },
+      "recorded_acquisition_urls": [
+        "https://tools.ssdc.asi.it/SED-REST/rest/getData?ra=77.358185156&dec=5.693148283"
+      ],
+      "source": "ssdc",
+      "treatment": "No likelihood, local-diagnostic, or plotted contribution; retained in the numerical provenance.",
+      "recorded_metadata": "Per-row original metadata remain in the CSV; use ssdc_dataset_mapping for publication/dataset grouping."
+    },
+    "SSDC_context": {
+      "count": 678,
+      "row_indices_1based": [ 3, 4, 5, 6, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 179, 180, 181, 182, 183, 184, 185, 186, 187, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 204, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216, 218, 219, 220, 221, 222, 223, 224, 225, 226, 227, 228, 229, 230, 231, 232, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244, 246, 247, 248, 249, 250, 251, 252, 253, 254, 255, 256, 257, 258, 259, 260, 261, 262, 264, 265, 266, 267, 268, 269, 271, 272, 273, 274, 276, 277, 278, 279, 280, 281, 282, 283, 284, 285, 286, 287, 288, 289, 290, 291, 292, 294, 295, 296, 297, 298, 299, 300, 301, 302, 304, 305, 306, 307, 308, 309, 310, 311, 312, 313, 314, 315, 316, 317, 318, 319, 320, 321, 322, 324, 325, 326, 327, 328, 329, 330, 331, 332, 333, 335, 336, 337, 338, 339, 340, 341, 342, 343, 344, 345, 346, 347, 348, 350, 351, 352, 353, 354, 355, 356, 357, 358, 359, 360, 362, 363, 364, 365, 366, 367, 368, 369, 370, 371, 372, 373, 374, 375, 376, 377, 379, 380, 381, 382, 383, 384, 385, 386, 387, 388, 390, 391, 392, 393, 394, 395, 396, 397, 398, 399, 400, 401, 402, 403, 404, 405, 406, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 420, 421, 422, 423, 424, 425, 426, 427, 428, 429, 430, 431, 432, 433, 434, 436, 437, 438, 439, 440, 441, 442, 443, 444, 445, 446, 447, 448, 449, 451, 452, 453, 454, 455, 456, 457, 458, 459, 460, 461, 462, 463, 464, 465, 466, 468, 469, 470, 471, 472, 473, 474, 475, 476, 477, 478, 479, 480, 481, 482, 483, 484, 486, 487, 488, 489, 490, 491, 492, 493, 494, 495, 496, 497, 498, 499, 501, 502, 503, 504, 505, 506, 507, 508, 509, 510, 511, 512, 513, 514, 516, 517, 518, 519, 520, 521, 522, 523, 524, 525, 526, 527, 528, 529, 530, 532, 533, 534, 535, 536, 537, 538, 539, 540, 541, 543, 544, 545, 546, 547, 548, 549, 550, 551, 552, 553, 554, 556, 557, 558, 559, 560, 561, 562, 563, 564, 566, 567, 568, 569, 570, 571, 572, 573, 574, 575, 577, 578, 579, 580, 581, 582, 583, 584, 585, 586, 588, 589, 590, 591, 592, 593, 594, 595, 596, 597, 598, 600, 601, 602, 603, 604, 605, 606, 607, 608, 609, 610, 611, 612, 614, 615, 616, 617, 618, 619, 620, 621, 622, 623, 624, 625, 626, 627, 628, 629, 631, 632, 633, 634, 635, 636, 637, 638, 639, 640, 641, 642, 643, 644, 645, 646, 647, 649, 650, 651, 652, 653, 654, 655, 656, 657, 658, 659, 660, 661, 663, 664, 665, 666, 668, 669, 670, 671, 672, 673, 674, 675, 676, 677, 678, 679, 680, 681, 682, 684, 686, 687, 688, 689, 691, 692, 693, 694, 695, 696, 697, 698, 699, 700, 701, 702, 703, 704, 705, 706, 707, 708, 709, 710, 711, 712, 713, 714, 715, 716, 717, 718, 720, 721, 722, 723, 724, 725, 726, 727, 728, 729, 730, 731, 733, 735, 736, 737, 738, 739, 740, 741, 742, 743, 744, 745, 746, 747, 748, 749, 750, 752, 753, 754, 755, 756, 757, 758, 759, 760, 761, 762, 763, 764, 765, 769, 770, 774, 776 ],
+      "roles": {
+        "context": 678
+      },
+      "statistics": {
+        "gaussian": 673,
+        "upper_limit": 5
+      },
+      "recorded_acquisition_urls": [
+        "https://tools.ssdc.asi.it/SED-REST/rest/getData?ra=77.358185156&dec=5.693148283"
+      ],
+      "source": "ssdc",
+      "treatment": "678 archival context points: 673 detections and five upper limits with unspecified confidence; no likelihood or local-diagnostic weight.",
+      "recorded_metadata": "Per-row original metadata remain in the CSV; use ssdc_dataset_mapping for publication/dataset grouping."
+    },
+    "VLA": {
+      "count": 1,
+      "row_indices_1based": [ 8 ],
+      "roles": {
+        "context": 1
+      },
+      "statistics": {
+        "gaussian": 1
+      },
+      "recorded_source_keys": [
+        "science:vla"
+      ],
+      "recorded_references": [
+        "IceCube Collaboration et al. 2018, Science 361, eaat1378"
+      ],
+      "recorded_acquisition_urls": [
+        "https://doi.org/10.1126/science.aat1378"
+      ],
+      "recorded_mjd_start_stop": [
+        [
+          "58031.6429",
+          "58031.6429"
+        ]
+      ],
+      "source": "science2018",
+      "locator": "Table S9, epoch 1 and 5.25 GHz; VLA subsection",
+      "treatment": "Context only. Published 565.3 +/- 1.0 mJy; the stored error is reproduced by adding an approximately 5% absolute flux-scale term in quadrature. Convert F_nu by nu*(1e-26 erg cm^-2 s^-1 Hz^-1 per mJy). This is an adopted combination, not a separately published combined error.",
+      "reported_window": {
+        "mjd_center": 58031.6429,
+        "mjd_half_width": 0.0104
+      },
+      "source_confidence_level": null
+    },
+    "Swift-UVOT": {
+      "count": 1,
+      "row_indices_1based": [ 35 ],
+      "roles": {
+        "fit": 1
+      },
+      "statistics": {
+        "gaussian": 1
+      },
+      "recorded_source_keys": [
+        "keivani:uvot:58023.8470"
+      ],
+      "recorded_references": [
+        "Keivani et al. 2018, ApJ 864, 84"
+      ],
+      "recorded_acquisition_urls": [
+        "https://cdsarc.cds.unistra.fr/ftp/J/ApJ/864/84/"
+      ],
+      "recorded_mjd_start_stop": [
+        [
+          "58023.847",
+          "58023.847"
+        ]
+      ],
+      "source": "keivani2018",
+      "uncertainty": "uvot_pivot",
+      "locator": "Table 4, MJD 58023.8470",
+      "timing": "Recorded single epoch, not an exact exposure start/stop. Duration not supplied in the adopted Table 4 row.",
+      "acquisition_qualification": "The CSV's generic CDS directory is not a numerical Table 4 file. The adopted scalar is a literal in the extractor and is traceable to the published table."
+    },
+    "Swift_XRT_context": {
+      "count": 35,
+      "row_indices_1based": [ 47, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82 ],
+      "roles": {
+        "context": 35
+      },
+      "statistics": {
+        "asymmetric_gaussian": 35
+      },
+      "recorded_source_keys": [
+        "cds:xrt:58019.4700",
+        "cds:xrt:58026.2273",
+        "cds:xrt:58028.6419",
+        "cds:xrt:58029.6745",
+        "cds:xrt:58030.7369",
+        "cds:xrt:58031.7944",
+        "cds:xrt:58032.8985",
+        "cds:xrt:58034.4478",
+        "cds:xrt:58040.9452",
+        "cds:xrt:58042.7684",
+        "cds:xrt:58044.1300",
+        "cds:xrt:58047.2130",
+        "cds:xrt:58050.7286",
+        "cds:xrt:58053.3162",
+        "cds:xrt:58059.6620",
+        "cds:xrt:58065.6390",
+        "cds:xrt:58068.3642",
+        "cds:xrt:58069.5359",
+        "cds:xrt:58071.1551",
+        "cds:xrt:58072.0949",
+        "cds:xrt:58073.0911",
+        "cds:xrt:58074.2484",
+        "cds:xrt:58075.0831",
+        "cds:xrt:58075.6655",
+        "cds:xrt:58076.0793",
+        "cds:xrt:58077.0756",
+        "cds:xrt:58078.0717",
+        "cds:xrt:58079.0675",
+        "cds:xrt:58080.1320",
+        "cds:xrt:58081.1279",
+        "cds:xrt:58082.0551",
+        "cds:xrt:58083.1195",
+        "cds:xrt:58084.0499",
+        "cds:xrt:58086.1089",
+        "cds:xrt:58087.1560"
+      ],
+      "recorded_references": [
+        "Keivani et al. 2018, ApJ 864, 84; CDS J/ApJ/864/84/table1"
+      ],
+      "recorded_acquisition_urls": [
+        "https://cdsarc.cds.unistra.fr/ftp/J/ApJ/864/84/table1.dat"
+      ],
+      "source": "keivani2018",
+      "uncertainty": "xrt_pivot",
+      "locator": "Table 1/CDS table1; the 35 non-fit observations",
+      "timing": "Monitoring centers MJD 58019.4700 through 58087.1560; per-row intervals use the published center +/- half-width. They are not summed continuous exposure.",
+      "acquisition_qualification": "Original historical CDS response bytes are unavailable. The preserved parser expects pipe-separated rows; current CDS table/TSV formats are not proof that this historical parser will regenerate the snapshot."
+    },
+    "Swift_XRT_fit": {
+      "count": 1,
+      "row_indices_1based": [ 48 ],
+      "roles": {
+        "fit": 1
+      },
+      "statistics": {
+        "asymmetric_gaussian": 1
+      },
+      "recorded_source_keys": [
+        "cds:xrt:58023.8535"
+      ],
+      "recorded_references": [
+        "Keivani et al. 2018, ApJ 864, 84; CDS J/ApJ/864/84/table1"
+      ],
+      "recorded_acquisition_urls": [
+        "https://cdsarc.cds.unistra.fr/ftp/J/ApJ/864/84/table1.dat"
+      ],
+      "recorded_mjd_start_stop": [
+        [
+          "58023.7875",
+          "58023.919499999996"
+        ]
+      ],
+      "source": "keivani2018",
+      "uncertainty": "xrt_pivot",
+      "locator": "Table 1/CDS table1, MJD 58023.8535"
+    },
+    "NuSTAR_active": {
+      "count": 44,
+      "row_indices_1based": [ 101, 119, 130, 148, 160, 178, 188, 205, 217, 233, 245, 263, 275, 293, 303, 323, 334, 349, 361, 378, 389, 407, 419, 435, 450, 467, 485, 500, 515, 531, 542, 555, 565, 576, 587, 599, 613, 630, 648, 662, 667, 683, 685, 690 ],
+      "roles": {
+        "fit": 44
+      },
+      "statistics": {
+        "gaussian": 44
+      },
+      "recorded_source_keys": [
+        "ssdc:14923"
+      ],
+      "recorded_references": [
+        "SSDC dataset 14923"
+      ],
+      "recorded_acquisition_urls": [
+        "https://tools.ssdc.asi.it/SED-REST/rest/getData?ra=77.358185156&dec=5.693148283"
+      ],
+      "recorded_mjd_start_stop": [
+        [
+          "58025.094594907",
+          "58025.750798611"
+        ]
+      ],
+      "source": "middei2022",
+      "uncertainty": "nublazar_sed",
+      "locator": "NuBlazar observation 90301618002, SSDC dataset 14923",
+      "timing": "The exact stored SSDC interval selected this spectrum upstream. Its elapsed span is not detector exposure. The NuBlazar catalogue gives an exposure of 27608 s; the independent Keivani reduction has different screened module exposures, which are not substituted."
+    },
+    "AGILE": {
+      "count": 1,
+      "row_indices_1based": [ 719 ],
+      "roles": {
+        "fit": 1
+      },
+      "statistics": {
+        "gaussian": 1
+      },
+      "recorded_source_keys": [
+        "science:agile"
+      ],
+      "recorded_references": [
+        "IceCube Collaboration et al. 2018, Science 361, eaat1378"
+      ],
+      "recorded_acquisition_urls": [
+        "https://doi.org/10.1126/science.aat1378"
+      ],
+      "recorded_mjd_start_stop": [
+        [
+          "58006.0",
+          "58019.0"
+        ]
+      ],
+      "source": "science2018",
+      "uncertainty": "agile_pivot",
+      "locator": "Supplement S23",
+      "timing": "13-day analysis window centered at 58012.5 gives MJD 58006-58019; it is not a continuous detector exposure."
+    },
+    "Fermi-LAT": {
+      "count": 1,
+      "row_indices_1based": [ 751 ],
+      "roles": {
+        "fit": 1
+      },
+      "statistics": {
+        "gaussian": 1
+      },
+      "recorded_source_keys": [
+        "keivani:lat:epoch1"
+      ],
+      "recorded_references": [
+        "Keivani et al. 2018, ApJ 864, 84"
+      ],
+      "recorded_acquisition_urls": [
+        "https://cdsarc.cds.unistra.fr/ftp/J/ApJ/864/84/"
+      ],
+      "recorded_mjd_start_stop": [
+        [
+          "58003.0",
+          "58033.0"
+        ]
+      ],
+      "source": "keivani2018",
+      "uncertainty": "lat_pivot",
+      "locator": "Section 2.8",
+      "timing": "Epoch 1 MJD 58003-58033 is the analysis window, not livetime.",
+      "acquisition_qualification": "The generic CDS root in the CSV is not the source of a machine-readable LAT pivot row; the literal scalar is traced to Section 2.8."
+    },
+    "MAGIC": {
+      "count": 1,
+      "row_indices_1based": [ 766 ],
+      "roles": {
+        "fit": 1
+      },
+      "statistics": {
+        "gaussian": 1
+      },
+      "recorded_source_keys": [
+        "science:magic:130gev"
+      ],
+      "recorded_references": [
+        "IceCube Collaboration et al. 2018, Science 361, eaat1378"
+      ],
+      "recorded_acquisition_urls": [
+        "https://doi.org/10.1126/science.aat1378"
+      ],
+      "recorded_mjd_start_stop": [
+        [
+          "58024.0",
+          "58030.0"
+        ]
+      ],
+      "source": "science2018",
+      "uncertainty": "magic_pivot",
+      "locator": "Main text VHE normalization and MAGIC supplement",
+      "timing": "Recorded MJD 58024-58030 describes the spectral-analysis period; it is not uninterrupted exposure."
+    },
+    "VERITAS": {
+      "count": 4,
+      "row_indices_1based": [ 767, 772, 775, 779 ],
+      "roles": {
+        "constraint": 4
+      },
+      "statistics": {
+        "upper_limit": 4
+      },
+      "recorded_source_keys": [
+        "science:veritas:1",
+        "science:veritas:2",
+        "science:veritas:3",
+        "science:veritas:4"
+      ],
+      "recorded_references": [
+        "IceCube Collaboration et al. 2018 supplementary material"
+      ],
+      "recorded_acquisition_urls": [
+        "https://icecube.wisc.edu/wp-content/uploads/2021/01/detection-flaring-blazar.pdf"
+      ],
+      "recorded_mjd_start_stop": [
+        [
+          "MJD 58019.4-58027.4",
+          "MJD 58019.4-58027.4"
+        ]
+      ],
+      "source": "science2018",
+      "locator": "Tables S6/S7 and supplement S29-S30",
+      "timing_correction": "veritas",
+      "source_confidence_level": 0.95,
+      "source_interval_convention": "One-sided differential flux upper limits; assumed E^-3.9 spectrum.",
+      "source_relevant_parameter_count": null,
+      "source_statistical_systematic": "Rolke-Lopez construction is described; energy-scale systematic 15-20% is reported separately. This documentation does not assert it was folded into each limit.",
+      "treatment": "Geometric bin energy sqrt(E_min*E_max); E^2 dN/dE with 1 TeV=1.602176634 erg. The larger distance from geometric center to the two bin edges is stored symmetrically as the horizontal width; it is not a calibration uncertainty or a faithful pair of exact bin edges.",
+      "published_energy_bins_tev": [
+        [ 0.141, 0.316 ],
+        [ 0.316, 0.708 ],
+        [ 0.708, 1.585 ],
+        [ 1.585, 3.548 ]
+      ],
+      "published_limits_per_tev": [ 5.4e-11, 6.4e-12, 5.3e-13, 8e-14 ],
+      "runtime": "upper_limit; not in the symmetric local diagnostic"
+    },
+    "H.E.S.S.": {
+      "count": 6,
+      "row_indices_1based": [ 768, 771, 773, 777, 778, 780 ],
+      "roles": {
+        "constraint": 6
+      },
+      "statistics": {
+        "upper_limit": 6
+      },
+      "recorded_source_keys": [
+        "science:h.e.s.s.:1",
+        "science:h.e.s.s.:2",
+        "science:h.e.s.s.:3",
+        "science:h.e.s.s.:4",
+        "science:h.e.s.s.:5",
+        "science:h.e.s.s.:6"
+      ],
+      "recorded_references": [
+        "IceCube Collaboration et al. 2018 supplementary material"
+      ],
+      "recorded_acquisition_urls": [
+        "https://icecube.wisc.edu/wp-content/uploads/2021/01/detection-flaring-blazar.pdf"
+      ],
+      "recorded_mjd_start_stop": [
+        [
+          "MJD 58019.0-58020.0",
+          "MJD 58019.0-58020.0"
+        ]
+      ],
+      "source": "science2018",
+      "locator": "Tables S4/S5 and supplement S27-S28",
+      "timing_correction": "hess",
+      "source_confidence_level": 0.95,
+      "source_interval_convention": "One-sided differential flux upper limits; assumed E^-3.9 spectrum.",
+      "source_relevant_parameter_count": null,
+      "source_statistical_systematic": "Rolke method with 30% systematic uncertainty; negative excesses replaced by scaled background counts as described in the supplement.",
+      "treatment": "Geometric bin energy sqrt(E_min*E_max); E^2 dN/dE with 1 TeV=1.602176634 erg. The larger center-to-edge distance is stored symmetrically as the horizontal width, not as a calibration uncertainty.",
+      "published_energy_bins_tev": [
+        [ 0.16, 0.28 ],
+        [ 0.28, 0.48 ],
+        [ 0.48, 0.85 ],
+        [ 0.85, 1.5 ],
+        [ 1.5, 2.63 ],
+        [ 2.63, 4.62 ]
+      ],
+      "published_limits_per_tev": [ 6.6e-11, 2.1e-11, 4.5e-12, 1.8e-12, 5.9e-13, 3.3e-13 ],
+      "runtime": "upper_limit; not in the symmetric local diagnostic"
+    }
+  },
+  "timing_corrections": {
+    "hess": {
+      "classification": "verified_descriptive_correction_applied",
+      "group": "H.E.S.S.",
+      "source": "science2018",
+      "locator": "Supplement S27-S28, Tables S4/S5 (PDF pages 53-54)",
+      "original_recorded": {
+        "mjd_start": "MJD 58019.0-58020.0",
+        "mjd_stop": "MJD 58019.0-58020.0"
+      },
+      "correction": "The six Table S5 limits combine the full follow-up data set, including the later nights; they are not restricted to MJD 58019-58020.",
+      "observations": [
+        {
+          "representative_mjd": 58019.07,
+          "reported_observation_time_h": 1.35,
+          "mjd_start": null,
+          "mjd_stop": null
+        },
+        {
+          "representative_mjd": 58024.08,
+          "reported_observation_time_h": 0.48,
+          "mjd_start": null,
+          "mjd_stop": null
+        },
+        {
+          "representative_mjd": 58025.08,
+          "reported_observation_time_h": 1.65,
+          "mjd_start": null,
+          "mjd_stop": null
+        }
+      ],
+      "time_precision": "Table S4 gives rounded nightly MJDs to 0.01 day and observation times, but not exact boundaries. Representative epochs are not promoted to exact midpoints/start/stop.",
+      "representative_epoch_range": [ 58019.07, 58025.08 ],
+      "enclosing_interval_mjd": null,
+      "reported_combined_high_quality_exposure_h": 3.25,
+      "sum_of_table_s4_times_h": 3.48,
+      "exposure_qualification": "The body text's 3.25 h and Table S4 sum of 3.48 h are distinct reported quantities with an unexplained mismatch; do not derive boundaries or replace one by the other.",
+      "selection_effect": "None in the adopted workflow: these rows' roles were literal constraints upstream and no date filtering occurs downstream. The corrected observation set remains within the nominal MJD 58003-58033 campaign window.",
+      "continuous_exposure": false
+    },
+    "veritas": {
+      "classification": "verified_descriptive_correction_applied",
+      "group": "VERITAS",
+      "source": "science2018",
+      "locator": "Supplement S29-S30, Tables S6/S7 (PDF pages 55-56)",
+      "original_recorded": {
+        "mjd_start": "MJD 58019.4-58027.4",
+        "mjd_stop": "MJD 58019.4-58027.4"
+      },
+      "correction": "Table S7 uses post-alert observations within two weeks. Select the four post-alert Table S6 windows, not its three historical entries.",
+      "observations": [
+        {
+          "mjd_center": 58019.3971,
+          "half_width_days": 0.0124,
+          "start": 58019.3847,
+          "stop": 58019.4095
+        },
+        {
+          "mjd_center": 58024.438,
+          "half_width_days": 0.0653,
+          "start": 58024.3727,
+          "stop": 58024.5033
+        },
+        {
+          "mjd_center": 58025.3932,
+          "half_width_days": 0.0219,
+          "start": 58025.3713,
+          "stop": 58025.4151
+        },
+        {
+          "mjd_center": 58026.4399,
+          "half_width_days": 0.0211,
+          "start": 58026.4188,
+          "stop": 58026.461
+        }
+      ],
+      "time_precision": "Start/stop values are arithmetic center +/- half-width at Table S6's 0.0001-day printed precision, not new precision from raw event times.",
+      "enclosing_interval_mjd": [ 58019.3847, 58026.461 ],
+      "enclosing_interval_meaning": "Envelope of the four tabulated windows, including gaps; not uninterrupted exposure.",
+      "sum_of_tabulated_window_durations_h": 5.7936,
+      "reported_quality_selected_exposure_h": 5.5,
+      "exposure_qualification": "The summed windows and quality-selected exposure are different quantities; no equality is assumed.",
+      "selection_effect": "None in the adopted workflow; roles were literal constraints. All four windows remain within MJD 58003-58033.",
+      "continuous_exposure": false
+    }
+  },
+  "ssdc_dataset_mapping": {
+    "ssdc:22": {
+      "count": 1,
+      "row_indices_1based": [ 1 ],
+      "roles": {
+        "exclude": 1
+      },
+      "recorded_names": [
+        "NORTH20CM (flux 80 cm)"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/1992ApJS...79..331W"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:20": {
+      "count": 1,
+      "row_indices_1based": [ 2 ],
+      "roles": {
+        "exclude": 1
+      },
+      "recorded_names": [
+        "NORTH20CM (flux 20 cm)"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/1992ApJS...79..331W"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:9": {
+      "count": 1,
+      "row_indices_1based": [ 3 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "NVSS"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/1998AJ....115.1693C"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:4": {
+      "count": 1,
+      "row_indices_1based": [ 4 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "GB6"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/1996ApJS..103..427G"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:2444": {
+      "count": 1,
+      "row_indices_1based": [ 5 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "JVASPOL"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/arXiv:astro-ph/0703273"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:13": {
+      "count": 1,
+      "row_indices_1based": [ 6 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "PMN"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/1994ApJS...91..111W"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:21": {
+      "count": 1,
+      "row_indices_1based": [ 7 ],
+      "roles": {
+        "exclude": 1
+      },
+      "recorded_names": [
+        "NORTH20CM (flux 6 cm)"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/1992ApJS...79..331W"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:12": {
+      "count": 1,
+      "row_indices_1based": [ 9 ],
+      "roles": {
+        "exclude": 1
+      },
+      "recorded_names": [
+        "CRATES"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/2007ApJS..171...61H"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:4143": {
+      "count": 1,
+      "row_indices_1based": [ 10 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "CLASSSCAT"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/2003MNRAS.341....1M"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:2428": {
+      "count": 5,
+      "row_indices_1based": [ 11, 12, 13, 14, 15 ],
+      "roles": {
+        "context": 5
+      },
+      "recorded_names": [
+        "NIEPPOCAT"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/2007AJ....133.1947N"
+      ],
+      "statistics": {
+        "upper_limit": 1,
+        "gaussian": 4
+      }
+    },
+    "ssdc:4164": {
+      "count": 1,
+      "row_indices_1based": [ 16 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "PCCS1F100"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/2014A%26A...571A..28P"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:7461": {
+      "count": 1,
+      "row_indices_1based": [ 17 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "PCCS2F100"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/arXiv:1507.02058"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:92": {
+      "count": 1,
+      "row_indices_1based": [ 18 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "ERCSC143"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/2011A%26A...536A...7P"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:4165": {
+      "count": 1,
+      "row_indices_1based": [ 19 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "PCCS1F143"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/2014A%26A...571A..28P"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:7462": {
+      "count": 1,
+      "row_indices_1based": [ 20 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "PCCS2F143"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/arXiv:1507.02058"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:93": {
+      "count": 1,
+      "row_indices_1based": [ 21 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "ERCSC217"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/2011A%26A...536A...7P"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:4168": {
+      "count": 1,
+      "row_indices_1based": [ 22 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "PCCS1F217"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/2014A%26A...571A..28P"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:7463": {
+      "count": 1,
+      "row_indices_1based": [ 23 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "PCCS2F217"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/arXiv:1507.02058"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:3208": {
+      "count": 1,
+      "row_indices_1based": [ 24 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "WISE W4 PointPsf"
+      ],
+      "recorded_references": [
+        "SSDC dataset 3208"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:5230": {
+      "count": 1,
+      "row_indices_1based": [ 25 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "allwise w4"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/2010AJ....140.1868W"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:3207": {
+      "count": 1,
+      "row_indices_1based": [ 26 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "WISE W3 PointPsf"
+      ],
+      "recorded_references": [
+        "SSDC dataset 3207"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:5229": {
+      "count": 1,
+      "row_indices_1based": [ 27 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "allwise w3"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/2010AJ....140.1868W"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:3206": {
+      "count": 1,
+      "row_indices_1based": [ 28 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "WISE W2 PointPsf"
+      ],
+      "recorded_references": [
+        "SSDC dataset 3206"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:5228": {
+      "count": 1,
+      "row_indices_1based": [ 29 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "allwise w2"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/2010AJ....140.1868W"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:3205": {
+      "count": 1,
+      "row_indices_1based": [ 30 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "WISE W1 PointPsf"
+      ],
+      "recorded_references": [
+        "SSDC dataset 3205"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:5227": {
+      "count": 1,
+      "row_indices_1based": [ 31 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "allwise w1"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/2010AJ....140.1868W"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:6349": {
+      "count": 1,
+      "row_indices_1based": [ 32 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "UVOTSSC v"
+      ],
+      "recorded_references": [
+        "SSDC dataset 6349"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:6350": {
+      "count": 1,
+      "row_indices_1based": [ 33 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "UVOTSSC b"
+      ],
+      "recorded_references": [
+        "SSDC dataset 6350"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:6351": {
+      "count": 1,
+      "row_indices_1based": [ 34 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "UVOTSSC u"
+      ],
+      "recorded_references": [
+        "SSDC dataset 6351"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:6354": {
+      "count": 1,
+      "row_indices_1based": [ 36 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "UVOTSSC uvw1"
+      ],
+      "recorded_references": [
+        "SSDC dataset 6354"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:6353": {
+      "count": 1,
+      "row_indices_1based": [ 37 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "UVOTSSC uvm2"
+      ],
+      "recorded_references": [
+        "SSDC dataset 6353"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:6352": {
+      "count": 1,
+      "row_indices_1based": [ 38 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "UVOTSSC uvw2"
+      ],
+      "recorded_references": [
+        "SSDC dataset 6352"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:2671": {
+      "count": 1,
+      "row_indices_1based": [ 39 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "GALEXAISFUV"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/2011MNRAS.411.2770B"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:14791": {
+      "count": 1,
+      "row_indices_1based": [ 40 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "band 1 (0.2 - 0.6 keV)"
+      ],
+      "recorded_references": [
+        "SSDC dataset 14791"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:14784": {
+      "count": 1,
+      "row_indices_1based": [ 41 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "band P1 (0.2 - 0.5 keV)"
+      ],
+      "recorded_references": [
+        "SSDC dataset 14784"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:7069": {
+      "count": 1,
+      "row_indices_1based": [ 42 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "1SXPS(0.3-1keV)"
+      ],
+      "recorded_references": [
+        "http://iopscience.iop.org/article/10.1088/0067-0049/210/1/8/meta"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:14783": {
+      "count": 1,
+      "row_indices_1based": [ 43 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "band 1 (0.2 - 2.3 keV)"
+      ],
+      "recorded_references": [
+        "SSDC dataset 14783"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:14334": {
+      "count": 2,
+      "row_indices_1based": [ 44, 45 ],
+      "roles": {
+        "context": 2
+      },
+      "recorded_names": [
+        "4XMM-DR12 (0.5-1 keV)"
+      ],
+      "recorded_references": [
+        "SSDC dataset 14334"
+      ],
+      "statistics": {
+        "gaussian": 2
+      }
+    },
+    "ssdc:14785": {
+      "count": 1,
+      "row_indices_1based": [ 46 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "band P2 (0.5 - 1 keV)"
+      ],
+      "recorded_references": [
+        "SSDC dataset 14785"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:14790": {
+      "count": 1,
+      "row_indices_1based": [ 83 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "band 0 (0.2 - 5.0 keV)"
+      ],
+      "recorded_references": [
+        "SSDC dataset 14790"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:14": {
+      "count": 1,
+      "row_indices_1based": [ 84 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "RASS"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/1999A&A...349..389V"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:8059": {
+      "count": 1,
+      "row_indices_1based": [ 85 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "RXS2CAT"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/2016A%26A...588A.103B"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:14792": {
+      "count": 1,
+      "row_indices_1based": [ 86 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "band 2 (0.6 - 2.3 keV)"
+      ],
+      "recorded_references": [
+        "SSDC dataset 14792"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:7070": {
+      "count": 1,
+      "row_indices_1based": [ 87 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "1SXPS(1-2keV)"
+      ],
+      "recorded_references": [
+        "http://iopscience.iop.org/article/10.1088/0067-0049/210/1/8/meta"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:14335": {
+      "count": 2,
+      "row_indices_1based": [ 88, 89 ],
+      "roles": {
+        "context": 2
+      },
+      "recorded_names": [
+        "4XMM-DR12 (1-2 keV)"
+      ],
+      "recorded_references": [
+        "SSDC dataset 14335"
+      ],
+      "statistics": {
+        "gaussian": 2
+      }
+    },
+    "ssdc:14786": {
+      "count": 1,
+      "row_indices_1based": [ 90 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "band P3 (1 - 2 keV)"
+      ],
+      "recorded_references": [
+        "SSDC dataset 14786"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:7072": {
+      "count": 1,
+      "row_indices_1based": [ 91 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "1SXPS(0.3—10 keV)"
+      ],
+      "recorded_references": [
+        "http://iopscience.iop.org/article/10.1088/0067-0049/210/1/8/meta"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:14336": {
+      "count": 2,
+      "row_indices_1based": [ 92, 93 ],
+      "roles": {
+        "context": 2
+      },
+      "recorded_names": [
+        "4XMM-DR12 (2-4.5 keV)"
+      ],
+      "recorded_references": [
+        "SSDC dataset 14336"
+      ],
+      "statistics": {
+        "gaussian": 2
+      }
+    },
+    "ssdc:14923": {
+      "count": 617,
+      "row_indices_1based": [ 94, 95, 96, 97, 98, 99, 100, 101, 102, 104, 105, 106, 107, 108, 109, 110, 111, 112, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250, 251, 252, 253, 254, 255, 256, 257, 258, 259, 260, 261, 262, 263, 264, 265, 266, 267, 268, 269, 271, 272, 273, 274, 275, 276, 277, 278, 279, 280, 281, 282, 283, 284, 285, 286, 287, 288, 289, 290, 291, 292, 293, 294, 295, 296, 297, 298, 299, 300, 301, 302, 303, 304, 305, 306, 307, 308, 309, 310, 311, 312, 313, 314, 315, 316, 317, 318, 319, 322, 323, 324, 325, 326, 327, 328, 329, 330, 331, 332, 333, 334, 335, 336, 337, 338, 339, 340, 341, 342, 343, 344, 345, 346, 347, 348, 349, 350, 351, 352, 353, 354, 355, 356, 357, 358, 359, 360, 361, 362, 363, 364, 365, 366, 367, 368, 369, 370, 371, 372, 373, 374, 375, 376, 377, 378, 379, 380, 381, 382, 383, 384, 385, 386, 387, 388, 389, 390, 391, 392, 393, 394, 395, 396, 397, 398, 399, 400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 419, 420, 421, 422, 423, 424, 425, 426, 427, 428, 429, 430, 431, 432, 433, 434, 435, 436, 437, 438, 439, 440, 441, 442, 443, 444, 445, 446, 447, 448, 449, 450, 451, 452, 453, 454, 455, 456, 457, 458, 459, 460, 461, 462, 463, 464, 465, 466, 467, 468, 469, 470, 471, 472, 473, 474, 475, 476, 477, 478, 479, 480, 481, 482, 483, 484, 485, 486, 487, 488, 489, 490, 491, 492, 493, 494, 495, 496, 497, 498, 499, 500, 501, 502, 503, 504, 505, 506, 507, 508, 509, 510, 511, 512, 513, 514, 515, 516, 517, 518, 519, 520, 521, 522, 523, 524, 525, 526, 527, 528, 529, 530, 531, 532, 533, 534, 535, 536, 537, 538, 539, 540, 541, 542, 543, 544, 545, 546, 547, 548, 549, 550, 551, 552, 553, 554, 555, 556, 557, 558, 559, 560, 561, 562, 563, 564, 565, 566, 567, 568, 569, 570, 571, 572, 573, 574, 575, 576, 577, 578, 579, 580, 581, 582, 583, 584, 585, 586, 587, 588, 589, 590, 591, 592, 593, 594, 595, 596, 597, 598, 599, 600, 601, 602, 603, 604, 605, 606, 607, 608, 609, 610, 611, 612, 613, 614, 615, 616, 617, 618, 619, 620, 621, 622, 623, 624, 625, 626, 627, 628, 629, 630, 631, 632, 633, 634, 635, 636, 637, 638, 639, 640, 641, 642, 643, 644, 645, 646, 647, 648, 649, 650, 651, 652, 653, 654, 655, 656, 657, 658, 659, 660, 661, 662, 663, 664, 665, 666, 667, 668, 669, 670, 671, 672, 673, 674, 675, 676, 677, 678, 679, 680, 681, 682, 683, 684, 685, 686, 687, 688, 689, 690, 691, 692, 693, 694, 695, 696, 697, 698, 699, 700, 701, 702, 703, 704, 705, 706, 707, 708, 709, 710, 711, 712, 713, 714, 715, 716 ],
+      "roles": {
+        "context": 573,
+        "fit": 44
+      },
+      "recorded_names": [
+        "NuBlazar",
+        "NuSTAR"
+      ],
+      "recorded_references": [
+        "SSDC dataset 14923"
+      ],
+      "statistics": {
+        "gaussian": 617
+      }
+    },
+    "ssdc:14787": {
+      "count": 1,
+      "row_indices_1based": [ 103 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "band P4 (2 - 5 keV)"
+      ],
+      "recorded_references": [
+        "SSDC dataset 14787"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:14793": {
+      "count": 1,
+      "row_indices_1based": [ 113 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "band 3 (2.3 - 5.0 keV)"
+      ],
+      "recorded_references": [
+        "SSDC dataset 14793"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:7071": {
+      "count": 1,
+      "row_indices_1based": [ 172 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "1SXPS(2—10 keV)"
+      ],
+      "recorded_references": [
+        "http://iopscience.iop.org/article/10.1088/0067-0049/210/1/8/meta"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:14788": {
+      "count": 1,
+      "row_indices_1based": [ 270 ],
+      "roles": {
+        "exclude": 1
+      },
+      "recorded_names": [
+        "band P5 (5 - 8 keV)"
+      ],
+      "recorded_references": [
+        "SSDC dataset 14788"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:14337": {
+      "count": 2,
+      "row_indices_1based": [ 320, 321 ],
+      "roles": {
+        "context": 2
+      },
+      "recorded_names": [
+        "4XMM-DR12 (4.5-12 keV)"
+      ],
+      "recorded_references": [
+        "SSDC dataset 14337"
+      ],
+      "statistics": {
+        "gaussian": 2
+      }
+    },
+    "ssdc:14344": {
+      "count": 1,
+      "row_indices_1based": [ 717 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "Fermi 4FGL-DR3 (0.05-0.1 GeV)"
+      ],
+      "recorded_references": [
+        "SSDC dataset 14344"
+      ],
+      "statistics": {
+        "upper_limit": 1
+      }
+    },
+    "ssdc:14345": {
+      "count": 1,
+      "row_indices_1based": [ 718 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "Fermi 4FGL-DR3 (0.1-0.3 GeV)"
+      ],
+      "recorded_references": [
+        "SSDC dataset 14345"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:56": {
+      "count": 1,
+      "row_indices_1based": [ 720 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "Fermi1FGL (200 Mev)"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/2010ApJS..188..405A"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:114": {
+      "count": 1,
+      "row_indices_1based": [ 721 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "Fermi2FGL (200 Mev)"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/2012ApJS..199...31N"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:5953": {
+      "count": 1,
+      "row_indices_1based": [ 722 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "Fermi3FGL (200 Mev)"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/2015ApJS..218...23A"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:14346": {
+      "count": 1,
+      "row_indices_1based": [ 723 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "Fermi 4FGL-DR3 (0.3-1 GeV)"
+      ],
+      "recorded_references": [
+        "SSDC dataset 14346"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:57": {
+      "count": 1,
+      "row_indices_1based": [ 724 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "Fermi1FGL (600 Mev)"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/2010ApJS..188..405A"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:115": {
+      "count": 1,
+      "row_indices_1based": [ 725 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "Fermi2FGL (600 Mev)"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/2012ApJS..199...31N"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:5954": {
+      "count": 1,
+      "row_indices_1based": [ 726 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "Fermi3FGL (600 Mev)"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/2015ApJS..218...23A"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:2884": {
+      "count": 24,
+      "row_indices_1based": [ 727, 728, 729, 730, 731, 732, 733, 734, 735, 736, 737, 738, 739, 740, 741, 742, 743, 744, 745, 746, 747, 748, 749, 750 ],
+      "roles": {
+        "context": 22,
+        "exclude": 2
+      },
+      "recorded_names": [
+        "Fermi2FglLC"
+      ],
+      "recorded_references": [
+        "SSDC dataset 2884"
+      ],
+      "statistics": {
+        "gaussian": 24
+      }
+    },
+    "ssdc:14347": {
+      "count": 1,
+      "row_indices_1based": [ 752 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "Fermi 4FGL-DR3 (1-3 GeV)"
+      ],
+      "recorded_references": [
+        "SSDC dataset 14347"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:58": {
+      "count": 1,
+      "row_indices_1based": [ 753 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "Fermi1FGL (2Gev)"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/2010ApJS..188..405A"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:116": {
+      "count": 1,
+      "row_indices_1based": [ 754 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "Fermi2FGL (2Gev)"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/2012ApJS..199...31N"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:5955": {
+      "count": 1,
+      "row_indices_1based": [ 755 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "Fermi3FGL (2Gev)"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/2015ApJS..218...23A"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:14348": {
+      "count": 1,
+      "row_indices_1based": [ 756 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "Fermi 4FGL-DR3 (3-10 GeV)"
+      ],
+      "recorded_references": [
+        "SSDC dataset 14348"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:59": {
+      "count": 1,
+      "row_indices_1based": [ 757 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "Fermi1FGL (6Gev)"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/2010ApJS..188..405A"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:117": {
+      "count": 1,
+      "row_indices_1based": [ 758 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "Fermi2FGL (6Gev)"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/2012ApJS..199...31N"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:5956": {
+      "count": 1,
+      "row_indices_1based": [ 759 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "Fermi3FGL (6Gev)"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/2015ApJS..218...23A"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:14349": {
+      "count": 1,
+      "row_indices_1based": [ 760 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "Fermi 4FGL-DR3 (10-30 GeV)"
+      ],
+      "recorded_references": [
+        "SSDC dataset 14349"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:14350": {
+      "count": 1,
+      "row_indices_1based": [ 761 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "Fermi 4FGL-DR3 (30-100 GeV)"
+      ],
+      "recorded_references": [
+        "SSDC dataset 14350"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:60": {
+      "count": 1,
+      "row_indices_1based": [ 762 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "Fermi1FGL (60Gev)"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/2010ApJS..188..405A"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:118": {
+      "count": 1,
+      "row_indices_1based": [ 763 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "Fermi2FGL (60Gev)"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/2012ApJS..199...31N"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:5957": {
+      "count": 1,
+      "row_indices_1based": [ 764 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "Fermi3FGL (60Gev)"
+      ],
+      "recorded_references": [
+        "https://ui.adsabs.harvard.edu/abs/2015ApJS..218...23A"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:7900": {
+      "count": 1,
+      "row_indices_1based": [ 765 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "2FHL (92GeV)"
+      ],
+      "recorded_references": [
+        "SSDC dataset 7900"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:7901": {
+      "count": 1,
+      "row_indices_1based": [ 769 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "2FHL (316GeV)"
+      ],
+      "recorded_references": [
+        "SSDC dataset 7901"
+      ],
+      "statistics": {
+        "upper_limit": 1
+      }
+    },
+    "ssdc:14351": {
+      "count": 1,
+      "row_indices_1based": [ 770 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "Fermi 4FGL-DR3 (100-1000 GeV)"
+      ],
+      "recorded_references": [
+        "SSDC dataset 14351"
+      ],
+      "statistics": {
+        "gaussian": 1
+      }
+    },
+    "ssdc:5092": {
+      "count": 1,
+      "row_indices_1based": [ 774 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "ARGO2LAC"
+      ],
+      "recorded_references": [
+        "http://iopscience.iop.org/0004-637X/779/1/27"
+      ],
+      "statistics": {
+        "upper_limit": 1
+      }
+    },
+    "ssdc:7902": {
+      "count": 1,
+      "row_indices_1based": [ 776 ],
+      "roles": {
+        "context": 1
+      },
+      "recorded_names": [
+        "2FHL (1081GeV)"
+      ],
+      "recorded_references": [
+        "SSDC dataset 7902"
+      ],
+      "statistics": {
+        "upper_limit": 1
+      }
+    }
+  },
+  "exclusions": {
+    "row_indices_1based": [ 1, 2, 7, 9, 270, 732, 734 ],
+    "reason_rule": "Six gaussian rows have zero machine-readable errors; one has lower flux error >= positive flux, incompatible with the log-flux dataset contract. No replacement errors are invented.",
+    "per_row_reason_source": "CSV selection_reason and original numeric fields; not an author-rejected physical measurement.",
+    "zero_error_rows": [ 1, 2, 7, 9, 732, 734 ],
+    "lower_error_exceeds_flux_rows": [ 270 ]
+  },
+  "snapshot_comparison": {
+    "comparison_date": "2026-09-05",
+    "current_service_url": "https://tools.ssdc.asi.it/SED-REST/rest/getData?ra=77.358185156&dec=5.693148283",
+    "current_response_sha256": "d71a8206cb0f8fc3384c387780bf0a0a59e3171eb4527bdfcfd40559a05979f2",
+    "prior_comparison_reused": true,
+    "value_time_matches": 728,
+    "strict_positive_symmetric_error_matches": 721,
+    "old_ssdc_rows": 729,
+    "differences": [
+      {
+        "raw_row_1based": 46,
+        "frozen": {
+          "reference_id": "14",
+          "reference_name": "RASS",
+          "band": "Soft X-Ray",
+          "kind": "Catalog",
+          "bibliography_url": "https://ui.adsabs.harvard.edu/abs/1999A&A...349..389V",
+          "AngularDistance": "18.23406764977507",
+          "Frequency": "2.42e+17",
+          "Nufnu": "2.8473967717018394e-13",
+          "FrequencyError": "0.0",
+          "NufnuError": "8.054335433954896e-14",
+          "StartTime": "47892.5",
+          "StopTime": "48257.5",
+          "Name": "1RXS J050927.0+05414",
+          "Info": ""
+        },
+        "current_same_frequency": [
+          {
+            "Name": "1RXS J050927.0+05414",
+            "AngularDistance": 18.23406764977507,
+            "Frequency": 242000000000000000,
+            "Nufnu": 5.046219834293817e-13,
+            "NufnuError": [ 1.4274072241286735e-13, 1.4274072241286735e-13 ],
+            "StartTime": 47892.5,
+            "StopTime": 48257.5
+          }
+        ],
+        "curated_rows": [
+          {
+            "row_index_1based": 84,
+            "role": "context"
+          }
+        ],
+        "interpretation": "Current RASS central flux and error differ; cause not established."
+      },
+      {
+        "raw_row_1based": 66,
+        "frozen": {
+          "reference_id": "14345",
+          "reference_name": "Fermi 4FGL-DR3 (0.1-0.3 GeV)",
+          "band": "Gamma-Ray",
+          "kind": "Catalog",
+          "bibliography_url": "",
+          "AngularDistance": "29.973188590784357",
+          "Frequency": "4.188e+22",
+          "Nufnu": "1.2312084511634236e-11",
+          "FrequencyError": "0.0",
+          "NufnuError": "1.1245935823203657e-12",
+          "StartTime": "",
+          "StopTime": "",
+          "Name": "",
+          "Info": ""
+        },
+        "current_same_frequency": [
+          {
+            "AngularDistance": 29.973188590784357,
+            "Frequency": 4.188e+22,
+            "Nufnu": 1.2312084511634236e-11,
+            "NufnuError": [ -1.106404247733228e-12, 1.1245935823203657e-12 ]
+          }
+        ],
+        "curated_rows": [
+          {
+            "row_index_1based": 718,
+            "role": "context"
+          }
+        ],
+        "interpretation": "Current 4FGL-DR3 errors are signed lower/upper arrays; four have equal absolute scales, three have unequal lower scales. Frozen scalar equals current upper scale; no replacement."
+      },
+      {
+        "raw_row_1based": 67,
+        "frozen": {
+          "reference_id": "14346",
+          "reference_name": "Fermi 4FGL-DR3 (0.3-1 GeV)",
+          "band": "Gamma-Ray",
+          "kind": "Catalog",
+          "bibliography_url": "",
+          "AngularDistance": "29.973188590784357",
+          "Frequency": "1.323e+23",
+          "Nufnu": "1.4192806652157941e-11",
+          "FrequencyError": "0.0",
+          "NufnuError": "4.013356216369529e-13",
+          "StartTime": "",
+          "StopTime": "",
+          "Name": "",
+          "Info": ""
+        },
+        "current_same_frequency": [
+          {
+            "AngularDistance": 29.973188590784357,
+            "Frequency": 1.323e+23,
+            "Nufnu": 1.4192806652157941e-11,
+            "NufnuError": [ -4.013356216369529e-13, 4.013356216369529e-13 ]
+          }
+        ],
+        "curated_rows": [
+          {
+            "row_index_1based": 723,
+            "role": "context"
+          }
+        ],
+        "interpretation": "Current 4FGL-DR3 errors are signed lower/upper arrays; four have equal absolute scales, three have unequal lower scales. Frozen scalar equals current upper scale; no replacement."
+      },
+      {
+        "raw_row_1based": 68,
+        "frozen": {
+          "reference_id": "14347",
+          "reference_name": "Fermi 4FGL-DR3 (1-3 GeV)",
+          "band": "Gamma-Ray",
+          "kind": "Catalog",
+          "bibliography_url": "",
+          "AngularDistance": "29.973188590784357",
+          "Frequency": "4.188e+23",
+          "Nufnu": "1.3618248889679663e-11",
+          "FrequencyError": "0.0",
+          "NufnuError": "3.673959736699012e-13",
+          "StartTime": "",
+          "StopTime": "",
+          "Name": "",
+          "Info": ""
+        },
+        "current_same_frequency": [
+          {
+            "AngularDistance": 29.973188590784357,
+            "Frequency": 4.188e+23,
+            "Nufnu": 1.3618248889679663e-11,
+            "NufnuError": [ -3.673959736699012e-13, 3.673959736699012e-13 ]
+          }
+        ],
+        "curated_rows": [
+          {
+            "row_index_1based": 752,
+            "role": "context"
+          }
+        ],
+        "interpretation": "Current 4FGL-DR3 errors are signed lower/upper arrays; four have equal absolute scales, three have unequal lower scales. Frozen scalar equals current upper scale; no replacement."
+      },
+      {
+        "raw_row_1based": 69,
+        "frozen": {
+          "reference_id": "14349",
+          "reference_name": "Fermi 4FGL-DR3 (10-30 GeV)",
+          "band": "Gamma-Ray",
+          "kind": "Catalog",
+          "bibliography_url": "",
+          "AngularDistance": "29.973188590784357",
+          "Frequency": "4.188e+24",
+          "Nufnu": "8.55020308027088e-12",
+          "FrequencyError": "0.0",
+          "NufnuError": "6.91671329586252e-13",
+          "StartTime": "",
+          "StopTime": "",
+          "Name": "",
+          "Info": ""
+        },
+        "current_same_frequency": [
+          {
+            "AngularDistance": 29.973188590784357,
+            "Frequency": 4.188e+24,
+            "Nufnu": 8.55020308027088e-12,
+            "NufnuError": [ -6.91671329586252e-13, 6.91671329586252e-13 ]
+          }
+        ],
+        "curated_rows": [
+          {
+            "row_index_1based": 760,
+            "role": "context"
+          }
+        ],
+        "interpretation": "Current 4FGL-DR3 errors are signed lower/upper arrays; four have equal absolute scales, three have unequal lower scales. Frozen scalar equals current upper scale; no replacement."
+      },
+      {
+        "raw_row_1based": 70,
+        "frozen": {
+          "reference_id": "14351",
+          "reference_name": "Fermi 4FGL-DR3 (100-1000 GeV)",
+          "band": "Gamma-Ray",
+          "kind": "Catalog",
+          "bibliography_url": "",
+          "AngularDistance": "29.973188590784357",
+          "Frequency": "7.646e+25",
+          "Nufnu": "2.2387974720622372e-12",
+          "FrequencyError": "0.0",
+          "NufnuError": "9.53676590823016e-13",
+          "StartTime": "",
+          "StopTime": "",
+          "Name": "",
+          "Info": ""
+        },
+        "current_same_frequency": [
+          {
+            "AngularDistance": 29.973188590784357,
+            "Frequency": 7.646e+25,
+            "Nufnu": 2.2387974720622372e-12,
+            "NufnuError": [ -7.815703379626671e-13, 9.53676590823016e-13 ]
+          }
+        ],
+        "curated_rows": [
+          {
+            "row_index_1based": 770,
+            "role": "context"
+          }
+        ],
+        "interpretation": "Current 4FGL-DR3 errors are signed lower/upper arrays; four have equal absolute scales, three have unequal lower scales. Frozen scalar equals current upper scale; no replacement."
+      },
+      {
+        "raw_row_1based": 71,
+        "frozen": {
+          "reference_id": "14348",
+          "reference_name": "Fermi 4FGL-DR3 (3-10 GeV)",
+          "band": "Gamma-Ray",
+          "kind": "Catalog",
+          "bibliography_url": "",
+          "AngularDistance": "29.973188590784357",
+          "Frequency": "1.324e+24",
+          "Nufnu": "1.2753957612243738e-11",
+          "FrequencyError": "0.0",
+          "NufnuError": "4.843954013941665e-13",
+          "StartTime": "",
+          "StopTime": "",
+          "Name": "",
+          "Info": ""
+        },
+        "current_same_frequency": [
+          {
+            "AngularDistance": 29.973188590784357,
+            "Frequency": 1.324e+24,
+            "Nufnu": 1.2753957612243738e-11,
+            "NufnuError": [ -4.843954013941665e-13, 4.843954013941665e-13 ]
+          }
+        ],
+        "curated_rows": [
+          {
+            "row_index_1based": 756,
+            "role": "context"
+          }
+        ],
+        "interpretation": "Current 4FGL-DR3 errors are signed lower/upper arrays; four have equal absolute scales, three have unequal lower scales. Frozen scalar equals current upper scale; no replacement."
+      },
+      {
+        "raw_row_1based": 72,
+        "frozen": {
+          "reference_id": "14350",
+          "reference_name": "Fermi 4FGL-DR3 (30-100 GeV)",
+          "band": "Gamma-Ray",
+          "kind": "Catalog",
+          "bibliography_url": "",
+          "AngularDistance": "29.973188590784357",
+          "Frequency": "1.324e+25",
+          "Nufnu": "6.85282950177446e-12",
+          "FrequencyError": "0.0",
+          "NufnuError": "1.042819151343688e-12",
+          "StartTime": "",
+          "StopTime": "",
+          "Name": "",
+          "Info": ""
+        },
+        "current_same_frequency": [
+          {
+            "AngularDistance": 29.973188590784357,
+            "Frequency": 1.324e+25,
+            "Nufnu": 6.85282950177446e-12,
+            "NufnuError": [ -9.416800022046812e-13, 1.042819151343688e-12 ]
+          }
+        ],
+        "curated_rows": [
+          {
+            "row_index_1based": 761,
+            "role": "context"
+          }
+        ],
+        "interpretation": "Current 4FGL-DR3 errors are signed lower/upper arrays; four have equal absolute scales, three have unequal lower scales. Frozen scalar equals current upper scale; no replacement."
+      }
+    ],
+    "interpretation": "All eight differing rows are context-only. One RASS central flux/error differs for an unknown reason. Seven 4FGL-DR3 rows now carry signed lower/upper errors; four retain the old absolute magnitudes, while three have different lower magnitudes. Signed conventions alone are not numerical errors. The preserved scalar equals the current upper error in those seven rows. No values or roles are updated."
+  },
+  "reuse_and_citation": {
+    "scope": "HELENA's BSD-3-Clause software license does not establish rights over third-party data. The notices below preserve source information, not a legal determination of redistribution permission.",
+    "ssdc": {
+      "locator": "https://www.ssdc.asi.it/doc/SSDC_catalogs_help.pdf",
+      "notice": "SSDC asks users to acknowledge its archival data, software, or online services and ASI; retain the specific catalogue/publication citations in this file.",
+      "redistribution_condition": null
+    },
+    "nublazar": {
+      "locator": "https://www.ssdc.asi.it/nustarblaz/",
+      "notice": "The catalogue identifies Middei et al. 2022 as its reference. The paper makes generated spectral products available through SSDC/Open Universe; public availability alone is not a blanket redistribution license.",
+      "redistribution_condition": null
+    },
+    "cds": {
+      "locator": "https://vizier.cds.unistra.fr/viz-bin/VizieR-",
+      "usage_rules": "https://cds.unistra.fr/vizier-org/licences_vizier.html",
+      "notice": "VizieR usage rules were retrieved on 2026-09-06. They permit scientific use with original author, publication, and publisher citations and request acknowledgement of CDS Strasbourg (DOI 10.26093/cds/vizier). Catalogue-origin conditions remain applicable; this does not relicense the complete mixed-source snapshot.",
+      "redistribution_condition": null
+    },
+    "keivani": {
+      "locator": "https://par.nsf.gov/servlets/purl/10092741",
+      "notice": "Published PDF carries a 2018 American Astronomical Society all-rights-reserved notice. Numerical tables and metadata are cited; no blanket data-redistribution permission is inferred.",
+      "redistribution_condition": null
+    },
+    "science": {
+      "locator": "https://arxiv.org/pdf/1807.08816v1",
+      "notice": "The campaign Data and materials availability section gives instrument-specific public access locators, including MAGIC, AGILE, H.E.S.S., VERITAS and VLA. These access statements are retained as provenance, not relabeled as a data license.",
+      "data_access_locators": {
+        "MAGIC": "https://magic.mpp.mpg.de/public/public-data/",
+        "AGILE": "https://www.ssdc.asi.it/mmia/index.php?mission=agilemmia",
+        "HESS": "https://www.mpi-hd.mpg.de/hfm/HESS/pages/publications/auxiliary/auxinfo_TXS0506.html",
+        "VERITAS": "https://veritas.sao.arizona.edu/veritas-science/veritas-results-mainmenu-72/490-ic-result",
+        "VLA": "https://archive.nrao.edu/archive/advquery.jsp (project 17B-403)"
+      },
+      "redistribution_condition": null
+    },
+    "release_review_required": "Confirm source-specific conditions for redistribution of the packaged third-party snapshot; do not replace missing terms with HELENA's license."
+  },
+  "unresolved_items": [
+    {
+      "id": "source_error_conventions",
+      "classification": "unknown_source_convention_qualified_example_accepted",
+      "groups": [
+        "NuSTAR_active",
+        "Swift-UVOT",
+        "Fermi-LAT",
+        "AGILE"
+      ],
+      "affects_if_changed": "Active log-likelihood scales and the corresponding symmetric local-diagnostic weights; possible fit results if separately re-evaluated.",
+      "data_finalization": "Author accepted the preserved observations and documented error approximations as a scope-limited application example on 2026-09-06. The source-specific confidence conventions remain unknown; no uniform one-sigma claim is verified."
+    },
+    {
+      "id": "xrt_error_approximation",
+      "classification": "documented_approximation_accepted_for_scoped_example",
+      "groups": [
+        "Swift_XRT_fit",
+        "Swift_XRT_context"
+      ],
+      "affects_if_changed": "One active asymmetric likelihood row; not the symmetric diagnostic subset.",
+      "data_finalization": "The marginal-endpoint envelope/normal-quantile approximation was accepted for the scope-limited application example on 2026-09-06; no joint confidence calibration is claimed."
+    },
+    {
+      "id": "magic_error_approximation",
+      "classification": "documented_approximation_accepted_for_scoped_example",
+      "groups": [
+        "MAGIC"
+      ],
+      "affects_if_changed": "Flux-systematic treatment changes its likelihood/local-diagnostic scale; the horizontal 15% value does not enter weights.",
+      "data_finalization": "The combined-error approximation was accepted for the scope-limited application example on 2026-09-06. Normalization confidence remains unresolved; 15% is not a published exact Gaussian energy sigma."
+    },
+    {
+      "id": "hess_exposure_reporting",
+      "classification": "unknown_source_detail",
+      "groups": [
+        "H.E.S.S."
+      ],
+      "affects_if_changed": "Descriptive exposure only in the current SED workflow; no exposure-factor likelihood is used.",
+      "data_finalization": "The combined data association is corrected. Exact nightly boundaries and the 3.48/3.25-hour discrepancy remain unresolved; no numerical-input correction is established."
+    },
+    {
+      "id": "historical_retrieval",
+      "classification": "documented_historical_gap",
+      "affects_if_changed": "Regenerating the snapshot from remote services, not loading the packaged bytes.",
+      "data_finalization": "Original HTTP response bytes/headers and complete extraction worksheets unavailable. Unavailable historical downloads do not invalidate the preserved snapshot."
+    },
+    {
+      "id": "context_confidence_and_archive_changes",
+      "classification": "documented_context_limitation",
+      "groups": [
+        "SSDC_context"
+      ],
+      "affects_if_changed": "Context display/provenance only in the present selection.",
+      "data_finalization": "Five context-limit confidences and missing per-catalogue source links remain unknown; no new historical-catalogue audit was performed."
+    },
+    {
+      "id": "third_party_redistribution",
+      "classification": "release_review_pending",
+      "affects_if_changed": "Public redistribution conditions, not numerical weights.",
+      "data_finalization": "Source-specific data conditions must be assessed before public release."
+    }
+  ],
+  "disposition": {
+    "documentation": "Timing corrections and adopted uncertainty treatments documented.",
+    "source_conventions": "Only explicitly supported conventions are verified; null means unknown.",
+    "scientific_input_correction_required": "No specific wrong active numerical conversion is confirmed by this bounded check. Author acceptance of the documented approximations is limited to the scoped application example and does not establish calibration.",
+    "author_statistical_decision_date": "2026-09-06",
+    "author_statistical_disposition": "Retain the adopted real observations and documented error approximations as a scope-limited application example.",
+    "author_decision_pending": false,
+    "third_party_redistribution_review_pending": true,
+    "author_release_decision_date": "2026-09-06",
+    "author_release_decision": "Publish the adopted numerical files unchanged with accurate source attribution; this supersedes the prior task-specific standalone-license gate, not the recorded unknown rights information.",
+    "new_third_party_permission_evidence": false,
+    "inputs_changed": false
+  }
+}

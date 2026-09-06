@@ -1,0 +1,10 @@
+/* Notebook Markdown only; code and math keep their renderer fonts. */
+:is(.jp-MarkdownOutput, .text_cell_render) {
+  font-family: "Times New Roman", Times, serif;
+}
+:is(.jp-MarkdownOutput, .text_cell_render) :is(p, h1, h2, h3, h4, h5, h6, li, blockquote, table, th, td) {
+  font-family: "Times New Roman", Times, serif;
+}
+:is(.jp-MarkdownOutput, .text_cell_render) :is(code, pre, kbd, samp) {
+  font-family: var(--jp-code-font-family, monospace);
+}

@@ -17,6 +17,14 @@ EVENT_ENERGY_RANGE_GEV = (1.83e5, 4.3e6)
 DATA_DIR = Path(__file__).resolve().parent / "data"
 
 
+def setup_notebook_style():
+    """Style notebook Markdown only; leave plots, code, and math unchanged."""
+    from IPython.display import HTML, display
+
+    css_path = Path(__file__).resolve().parents[2] / "quickstart/notebook_markdown.css"
+    display(HTML("<style>" + css_path.read_text(encoding="utf-8") + "</style>"))
+
+
 def default_cache_dir():
     configured = os.environ.get("HELENA_CACHE_DIR")
     return Path(configured).expanduser() if configured else None
@@ -513,7 +521,7 @@ def plot_broadband_fit_and_neutrino(
         photon_floor * 0.5,
         5.0 * max(np.max(best_sed), np.max(data["sed_flux_erg_cm2_s"])),
     )
-    photon_ax.legend(fontsize=6.2, ncol=4, loc="best")
+    photon_ax.legend(fontsize=6.2, ncol=4, loc="lower left")
     photon_ax.text(
         0.012,
         0.965,
@@ -650,7 +658,7 @@ def plot_broadband_fit_and_neutrino(
         fontsize=7.7,
         wrap=True,
     )
-    fig.subplots_adjust(top=0.93, bottom=0.10)
+    fig.subplots_adjust(top=0.93, bottom=0.15)
     return fig
 
 

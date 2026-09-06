@@ -528,7 +528,12 @@ def fit_maximum_likelihood(
 
 
 def _local_identifiability_diagnostics(weighted_jacobian, parameter_names=None):
-    """Return the maintained local Gauss-Newton identifiability calculation."""
+    """Return local geometry with one numerical singular-direction cutoff.
+
+    Rank/status describe numerical conditioning, not physical identifiability.
+    The finite flag does not certify every correlation: entries without
+    positive finite variances and normalization remain NaN.
+    """
 
     jacobian = np.asarray(weighted_jacobian, dtype=np.float64)
     if not np.all(np.isfinite(jacobian)):
@@ -538,13 +543,14 @@ def _local_identifiability_diagnostics(weighted_jacobian, parameter_names=None):
             False,
             ["weighted Jacobian contains non-finite values"],
         )
-    singular_values = np.linalg.svd(jacobian, compute_uv=False)
+    _, singular_values, right_vectors = np.linalg.svd(jacobian, full_matrices=False)
     tolerance = (
         max(jacobian.shape) * np.finfo(np.float64).eps * singular_values[0]
         if singular_values.size
         else 0.0
     )
-    rank = int(np.count_nonzero(singular_values > tolerance))
+    keep = singular_values > tolerance
+    rank = int(np.count_nonzero(keep))
     nparameters = jacobian.shape[1]
     condition = (
         float(singular_values[0] / singular_values[-1])
@@ -552,15 +558,22 @@ def _local_identifiability_diagnostics(weighted_jacobian, parameter_names=None):
         else float("inf")
     )
     gauss_newton = jacobian.T @ jacobian
-    covariance = np.linalg.pinv(
-        gauss_newton,
-        rcond=max(jacobian.shape) * np.finfo(np.float64).eps,
-        hermitian=True,
-    )
-    scale = np.sqrt(np.clip(np.diag(covariance), 0.0, None))
+    if rank:
+        inverse_factor = right_vectors[keep, :].T / singular_values[keep]
+        covariance = inverse_factor @ inverse_factor.T
+    else:
+        covariance = np.zeros((nparameters, nparameters), dtype=np.float64)
+    variance = np.diag(covariance)
+    valid_variance = np.isfinite(variance) & (variance > 0.0)
+    scale = np.sqrt(np.where(valid_variance, variance, np.nan))
     denominator = np.outer(scale, scale)
     correlation = np.full(covariance.shape, np.nan)
-    np.divide(covariance, denominator, out=correlation, where=denominator > 0.0)
+    np.divide(
+        covariance,
+        denominator,
+        out=correlation,
+        where=np.isfinite(denominator) & (denominator > 0.0) & np.isfinite(covariance),
+    )
     names = (
         list(parameter_names)
         if parameter_names is not None
@@ -632,6 +645,8 @@ def add_postfit_diagnostics(
     ``weighted_jacobian`` is the Jacobian of selected log-SED model values
     divided by ``sigma_log_sed``. Its covariance is only a local Gauss-Newton
     diagnostic, not a final profile-likelihood uncertainty.
+    Undefined correlations remain NaN; ``numerically_finite`` is not a
+    per-entry correlation-validity flag.
     """
 
     if not isinstance(dataset, LogSEDDataset):

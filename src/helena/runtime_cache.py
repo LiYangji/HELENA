@@ -36,9 +36,8 @@ def _resource_filename(fingerprint, suffix):
     return f"bh_pair_response_{fingerprint}.{suffix}"
 
 
-# Package-owned v0.1 resource binding. The validated file identities are final;
-# the release-asset URL/archive checksum remain deliberately unbound until the
-# official archive exists. Patch releases can reuse this physics/grid identity.
+# Package-owned v0.1 resource binding. The version-specific release asset and
+# validated file identities are fixed. Patch releases can reuse this physics/grid identity.
 OFFICIAL_BH_CACHE_RESOURCE = {
     "resource_name": "helena_bethe_heitler_c513_responses",
     "cache_format_version": _CACHE_SCHEMA_VERSION,
@@ -46,7 +45,15 @@ OFFICIAL_BH_CACHE_RESOURCE = {
     "grid_identifier": "c513_daughter513_proton441_targets64-86-96_v1",
     "dtype": "<f8",
     "fingerprints": (_FINGERPRINT_64, _FINGERPRINT_86, _FINGERPRINT_96),
-    "archive": {"format": "zip", "url": None, "sha256": None},
+    "archive": {
+        "format": "zip",
+        "url": (
+            "https://github.com/LiYangji/HELENA-resources/releases/download/"
+            "bh-c513-v1/helena_bethe_heitler_c513_responses_"
+            "ka2008_born_omega_lt_600_v1.zip"
+        ),
+        "sha256": "a3abbcf77452bcc5015e848130a463e691d717954150611b47f8f19569bd88d4",
+    },
     "files": {
         _resource_filename(_FINGERPRINT_64, "json"): {
             "kind": "metadata",
@@ -378,10 +385,10 @@ def fetch_official_bethe_heitler_cache(cache_dir=None):
         payload.mkdir()
         try:
             with ZipFile(archive_path) as bundle:
-                names = {
-                    info.filename for info in bundle.infolist() if not info.is_dir()
-                }
-                if names != set(resource["files"]):
+                names = [info.filename for info in bundle.infolist()]
+                if len(names) != len(resource["files"]) or set(names) != set(
+                    resource["files"]
+                ):
                     raise BetheHeitlerResponseCacheInvalid(
                         "official cache archive file manifest mismatch"
                     )
