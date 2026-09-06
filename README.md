@@ -108,10 +108,14 @@ establish global identifiability or a unique physical interpretation. v0.1.0
 does not provide event-level neutrino inference or time-dependent evolution.
 
 [RELEASE_MANIFEST_v0.1.0.json](RELEASE_MANIFEST_v0.1.0.json) identifies the
-current files, external response resource, and bounded validation coverage.
+tagged v0.1.0 files, external response resource, and bounded validation coverage.
 `FREEZE_MANIFEST.json` is preserved historical evidence: its old hashes and
 pending-publication statements are not the current release identity.
 
-Software citation metadata are in [CITATION.cff](CITATION.cff). HELENA software
+For HELENA v0.1.0, cite the version-specific software DOI
+[10.5281/zenodo.22499660](https://doi.org/10.5281/zenodo.22499660).
+Software citation metadata are in [CITATION.cff](CITATION.cff). This
+citation-only update on `main` does not change the `v0.1.0` tag or archive.
+HELENA software
 uses [BSD-3-Clause](LICENSE); third-party data and benchmark products retain
 their own terms, documented in the [example index](examples/README.md).

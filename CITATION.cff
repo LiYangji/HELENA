@@ -4,6 +4,7 @@ type: software
 title: "HELENA: High-Energy Lepto-hadronic Emission and Neutrino Analysis"
 version: 0.1.0
 date-released: 2026-09-06
+doi: 10.5281/zenodo.22499660
 authors:
   - family-names: Li
     given-names: Yangji
