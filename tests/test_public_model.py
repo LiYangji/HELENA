@@ -29,7 +29,7 @@ def _config():
 def _fake_raw(configuration):
     values = np.asarray([1.0, 2.0, 3.0])
     high_values = np.ones_like(configuration["gamma_ray_energy_erg"])
-    broadband_energy, _, _ = c513._canonical_broadband_photon_support(configuration)
+    broadband_energy = c513._canonical_broadband_photon_support(configuration)
     broadband_values = np.ones_like(broadband_energy)
     flavors = {
         "nu_e": values,
@@ -58,7 +58,8 @@ def _fake_raw(configuration):
     }
     inner = {
         "iteration_count": np.int32(3),
-        "electron_synchrotron_high_energy_intrinsic_sed_erg_s": high_values,
+        "electron_synchrotron_intrinsic_sed_erg_s": high_values,
+        "internal_ic_intrinsic_sed_erg_s": 3.0 * high_values,
         "ssc_intrinsic_sed_erg_s": high_values,
         "external_compton_intrinsic_sed_erg_s": high_values,
         "proton_synchrotron_intrinsic_sed_erg_s": high_values,
@@ -91,7 +92,7 @@ def _fake_raw(configuration):
                     name: broadband_values
                     for name in (
                         "transported_lepton_synchrotron",
-                        "transported_lepton_ssc",
+                        "transported_lepton_internal_inverse_compton",
                     )
                 },
                 **{
@@ -215,7 +216,10 @@ def test_forward_wraps_canonical_result_and_reuses_responses(monkeypatch):
         calls["forward"] += 1
         assert setup["production_configuration"]
         assert prepared_responses is responses
-        assert observer_options["ebl_transmission"].shape == (113,)
+        assert (
+            observer_options["ebl_transmission"].shape
+            == setup["production_configuration"]["gamma_ray_energy_erg"].shape
+        )
         np.testing.assert_array_equal(observer_options["ebl_transmission"], 1.0)
         return _fake_raw(setup["production_configuration"])
 
@@ -226,6 +230,16 @@ def test_forward_wraps_canonical_result_and_reuses_responses(monkeypatch):
     second = model.forward()
 
     assert isinstance(first, ForwardResult)
+    np.testing.assert_array_equal(
+        first.components["internal_ic_energy_luminosity_blob_erg_s"],
+        3.0 * first.components["ssc_energy_luminosity_blob_erg_s"],
+    )
+    assert (
+        "transported_lepton_internal_inverse_compton_broadband_escaped_energy_luminosity_blob_erg_s"
+    ) in first.components
+    assert (
+        "transported_lepton_ssc_broadband_escaped_energy_luminosity_blob_erg_s"
+    ) not in first.components
     assert calls == {"prepare": 1, "forward": 2}
     np.testing.assert_array_equal(
         first.sed["escaped_energy_luminosity_blob_erg_s"],
@@ -245,13 +259,11 @@ def test_forward_wraps_canonical_result_and_reuses_responses(monkeypatch):
     assert first.diagnostics["converged"] is True
     assert first.diagnostics["outer_iterations"] == 4
     assert first.diagnostics["maximum_outer_relative_residual"] == 1.0e-5
-    assert first.diagnostics[
-        "source_resolved_gamma_gamma_parent_ownership"
-    ] == "aggregate"
+    assert (
+        first.diagnostics["source_resolved_gamma_gamma_parent_ownership"] == "aggregate"
+    )
     assert np.isfinite(
-        first.diagnostics[
-            "source_resolved_escaped_earth_maximum_relative_error"
-        ]
+        first.diagnostics["source_resolved_escaped_earth_maximum_relative_error"]
     )
     assert (
         "primary_electron_synchrotron_broadband_ebl_attenuated_"
@@ -266,10 +278,7 @@ def test_forward_wraps_canonical_result_and_reuses_responses(monkeypatch):
         "gamma_gamma_reprocessed_pair_synchrotron",
         "gamma_gamma_reprocessed_pair_inverse_compton",
     ):
-        field = (
-            f"{name}_broadband_ebl_attenuated_"
-            "energy_flux_earth_erg_cm2_s"
-        )
+        field = f"{name}_broadband_ebl_attenuated_" "energy_flux_earth_erg_cm2_s"
         assert field in first.components
         assert not first.components[field].flags.writeable
     assert "all_flavor" in first.neutrinos["source_injection_blob_denergy_cm3_s"]

@@ -10,8 +10,8 @@ validated offset mappers, the solver, or the AD graph.
 |---|---|
 | Physical `B`, `R`, electron/proton kinetic luminosity, injection index, and exponential cutoff `gamma_max` | Public absolute values; deterministically converted through the existing two mappers. |
 | Redshift, Doppler factor, luminosity distance | Required public observer values; no cosmology is inferred. |
-| SSC, internal gamma-gamma, dynamic/off Bethe–Heitler, cold-target pp, pion/muon synchrotron photons | Existing scientifically defined L1 controls. |
-| Particle/photon/neutrino grids, quadrature, split energy, escape-rate construction, solver strategy | Fixed C513 setup; internal. |
+| Internal inverse Compton, internal gamma-gamma, dynamic/off Bethe–Heitler, cold-target pp, pion/muon synchrotron photons | Existing scientifically defined L1 controls. |
+| Particle/photon/neutrino grids, quadrature, escape-rate construction, solver strategy | Fixed C513 setup; internal. |
 | Electron/proton `gamma_min` | Fixed at 1.0 by the validated injection normalization and fixed grids; not safely mapper-configurable. |
 | External photon target, EC, external gamma-gamma | Current setup is a blob-frame exact-zero placeholder; no meaningful public target contract yet. |
 | EBL table | P3 uses explicit identity transmission. Table/domain selection remains a later propagation contract. |
@@ -42,8 +42,8 @@ absolute; units are encoded in field names.
 | `proton_kinetic_injection_luminosity_erg_s` | Proton kinetic injection luminosity, erg s^-1; positive. |
 | `proton_injection_index` | Proton power-law index; finite. |
 | `proton_gamma_max` | Proton exponential-cutoff scale; greater than fixed `gamma_min=1`. |
-| `enable_ssc` | Include SSC emission and cooling; default `True`. |
-| `enable_internal_gamma_gamma` | Include internal gamma-gamma absorption and its pair injection; default `True`. `False` leaves the synchrotron target, p-gamma, and external gamma-gamma semantics unchanged. |
+| `enable_ssc` | Retained name enabling internal IC emission and cooling on the complete internal photon density; default `True`. |
+| `enable_internal_gamma_gamma` | Include internal gamma-gamma absorption and its pair injection; default `True`. `False` switches off internal gamma-gamma only; internal IC and hadronic processes retain their defined photon fields. |
 | `enable_bethe_heitler` | Select existing dynamic BH or off semantics; default `True`. |
 | `enable_proton_proton` | Include existing cold-target pp chain; default `False`. |
 | `cold_proton_density_cm3` | Cold-proton density, cm^-3; exactly zero when pp is off and positive when on. |
@@ -72,7 +72,7 @@ the existing setup, performs the mapping above, and exposes only `forward()`.
 On the first forward it calls `prepare_c513_responses(..., allow_build=False)`;
 `cache_dir=None` delegates first to `HELENA_CACHE_DIR` and then to the
 platform-standard user cache directory.
-Exact cache hits and the in-memory gamma-gamma response are reused by later
+Exact BH/gamma-gamma cache hits and their in-memory responses are reused by later
 forwards. A miss is not rebuilt implicitly. No response tensor is public.
 
 Every forward calls `run_c513_forward` with a fresh solver state and the
@@ -89,23 +89,23 @@ and read-only host NumPy arrays.
 - `sed`: `energy_blob_erg`,
   `escaped_energy_luminosity_blob_erg_s`, `energy_observer_erg`,
   `intrinsic_energy_flux_observer_erg_cm2_s`, and
-  `ebl_attenuated_energy_flux_earth_erg_cm2_s` retain their high-energy-grid
-  semantics. The additive `broadband_*` fields expose the complete canonical
-  low-plus-high escaped photon SED in the blob, intrinsic observer, and
+  `ebl_attenuated_energy_flux_earth_erg_cm2_s` now use the complete common
+  photon grid. The `broadband_*` fields expose the same canonical
+  full-grid escaped photon SED in the blob, intrinsic observer, and
   EBL-attenuated Earth frames, including explicit Earth source indices and
   transmission.
-- `components`: one shared `energy_blob_erg` plus legacy intrinsic high-energy
-  blob-frame `E L_E` arrays for electron synchrotron, SSC, external Compton,
+- `components`: one shared `energy_blob_erg` plus intrinsic full-grid
+  blob-frame `E L_E` arrays for electron synchrotron, internal IC, external Compton,
   proton synchrotron, neutral-pion decay, pion synchrotron, muon synchrotron,
   and total. Additive canonical broadband escaped process groups expose
-  transported-lepton synchrotron, transported-lepton SSC, proton synchrotron,
-  neutral-pion decay, charged-pion synchrotron, and muon synchrotron in blob,
+  transported-lepton synchrotron, `transported_lepton_internal_inverse_compton`,
+  external Compton, proton synchrotron, neutral-pion decay, charged-pion synchrotron,
+  and muon synchrotron in blob,
   intrinsic-observer, and EBL-attenuated Earth quantities. Scientifically
   defined disabled components are exact-zero arrays; external Compton is zero
   while the public external field is absent. The additive post-convergence
   diagnostic mapping additionally separates primary-electron synchrotron,
-  primary-electron inverse Compton (with `primary_electron_ssc` retained as a
-  frozen compatibility key), Bethe--Heitler secondary-pair radiation,
+  primary-electron inverse Compton, Bethe--Heitler secondary-pair radiation,
   photomeson secondary-pair radiation, aggregate gamma-gamma reprocessed-pair
   radiation, proton synchrotron, neutral-pion decay, charged-pion synchrotron,
   and muon synchrotron. These nine source-resolved groups are additive. The
@@ -113,8 +113,10 @@ and read-only host NumPy arrays.
   aliases for the primary and secondary lepton populations. It freezes the
   converged cooling, escape, target, SSA, and gamma-gamma transfer state, so
   these arrays do not rerun or alter the self-consistent cascade. The legacy
-  transported-lepton groups remain for compatibility but are not separate
-  additive terms alongside the resolved groups.
+  transported-lepton groups are not separate additive terms alongside the
+  resolved groups. `ssc_energy_luminosity_blob_erg_s` and `primary_electron_ssc`
+  are true synchrotron-seeded diagnostics, excluded from both additive totals.
+  They are subsets, not aliases for total internal IC.
 - `particles`: `electron`, `positron`, and `proton`, each with
   `gamma_total_energy_over_rest_energy`,
   `primary_injection_blob_dgamma_cm3_s`, and
@@ -134,16 +136,12 @@ spectra are `E F_E` in erg cm^-2 s^-1. With `enable_ebl=False`, Earth photon
 values equal intrinsic observer values bitwise; with it enabled, Earth fields
 use the shared non-extrapolated Dominguez-2011 support and attenuation.
 
-The broadband grid owns all low-energy nodes through and including the fixed
-1 MeV synchrotron split, followed by high-energy nodes strictly above the
-split. It is strictly increasing and uses no interpolation. The low segment is
-the existing total electron/positron plus meson synchrotron source after the
-same homogeneous-sphere SSA transfer used by the internal photon field; the
-high segment is the existing total escaped gamma-ray SED after internal
-gamma-gamma transfer. The observer grid is `delta E_blob/(1+z)`, and its
+All internal sources use one strictly increasing photon grid and the same
+accepted density and SSA/gamma-gamma transfer state. No 1 MeV selection or
+low/high output splice remains. The observer grid is `delta E_blob/(1+z)`, and its
 pre-EBL energy flux is `delta^4 (E L_E)_blob/(4 pi d_L^2)`.
 
-Pion/muon particle work states, low-energy target-band components, complete
+Pion/muon particle work states, source-density work arrays, complete
 ledgers, warnings/provenance expansion, manual response control, and external-
 field configuration remain internal or deferred. Dataset/fit results,
 standalone facades, and sensitivity/local-curvature operations are provided by

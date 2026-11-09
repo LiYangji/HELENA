@@ -84,15 +84,19 @@ equation and return model-chain-specific escape/decay products.
 
 ### `helena.cascade`
 
-`cascade.solve_em(...)` accepts explicit blob photon grids, total electron and
+`cascade.solve_em(...)` accepts identical full-support blob photon grids (the
+two historical grid arguments must agree), total electron and
 positron sources, a prescribed proton distribution, a prescribed gamma source,
 one already-comoving external target, `B`, `R`, adiabatic/escape rates, and an
 optional extra continuous lepton loss. The two electron source arrays replace
 the internal provenance split into primary, muon-decay, and Bethe-Heitler
-buffers; the unchanged owner sees the same additive sources.
+buffers; the owner sees the same additive sources. The retained
+`enable_synchrotron_self_compton` input enables internal IC on the complete
+internal photon density. External IC reads its separate fixed reservoir once.
 
 The facade returns `EMCascadeResult`, an immutable named PyTree containing final
-electron/positron densities, intrinsic and escaped gamma `E L_E`, gamma-gamma
+electron/positron densities, intrinsic and escaped total-photon `E L_E` on the
+full grid (historical field names contain `gamma`), gamma-gamma
 diameter depth, and compact convergence facts. It omits raw next/relaxed
 iterates, residual histories, pair-remap fields, response tensors, and ledgers.
 Fixed-grid pair responses are prepared automatically on the host and the

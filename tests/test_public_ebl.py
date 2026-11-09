@@ -13,7 +13,7 @@ from helena.model import _observer_ebl_support
 
 GROUPS = (
     "transported_lepton_synchrotron",
-    "transported_lepton_ssc",
+    "transported_lepton_internal_inverse_compton",
     "proton_synchrotron",
     "neutral_pion_decay",
     "charged_pion_synchrotron",
@@ -42,15 +42,11 @@ def test_ebl_switch_validation_and_non_extrapolated_support():
     with pytest.raises(TypeError, match="enable_ebl must be boolean"):
         _config(enable_ebl="yes")
     energy = np.asarray((1.0e-6, 1.0e-3, 1.0, 200.0)) * 1.602176634
-    indices, transmission = _observer_ebl_support(
-        _config(enable_ebl=True), energy
-    )
+    indices, transmission = _observer_ebl_support(_config(enable_ebl=True), energy)
     np.testing.assert_array_equal(indices, (0, 1, 2))
     assert transmission[0] == 1.0
     assert np.all((transmission > 0.0) & (transmission <= 1.0))
-    off_indices, off_transmission = _observer_ebl_support(
-        _config(), energy
-    )
+    off_indices, off_transmission = _observer_ebl_support(_config(), energy)
     np.testing.assert_array_equal(off_indices, np.arange(4))
     np.testing.assert_array_equal(off_transmission, np.ones(4))
 
@@ -64,17 +60,11 @@ def test_real_forward_fit_target_jacobian_and_component_closure():
     enabled = OneZoneModel(_config(enable_ebl=True), cache_dir=cache)
     result = enabled.forward()
     earth_energy = result.sed["broadband_energy_earth_erg"]
-    earth_flux = result.sed[
-        "broadband_ebl_attenuated_energy_flux_earth_erg_cm2_s"
-    ]
+    earth_flux = result.sed["broadband_ebl_attenuated_energy_flux_earth_erg_cm2_s"]
     source_indices = result.sed["broadband_earth_source_indices"]
     transmission = result.sed["broadband_ebl_transmission"]
-    intrinsic = result.sed[
-        "broadband_intrinsic_energy_flux_observer_erg_cm2_s"
-    ]
-    np.testing.assert_array_equal(
-        earth_flux, intrinsic[source_indices] * transmission
-    )
+    intrinsic = result.sed["broadband_intrinsic_energy_flux_observer_erg_cm2_s"]
+    np.testing.assert_array_equal(earth_flux, intrinsic[source_indices] * transmission)
     assert np.all(np.diff(earth_energy) > 0.0)
     assert np.all(transmission > 0.0)
     assert earth_energy[-1] / 1.602176634 <= 100.0
@@ -102,8 +92,10 @@ def test_real_forward_fit_target_jacobian_and_component_closure():
     jacobian.block_until_ready()
     np.testing.assert_array_equal(energy, earth_energy[target_support])
     np.testing.assert_allclose(
-        np.exp(np.asarray(target_value)), earth_flux[target_support],
-        rtol=2.0e-11, atol=0.0,
+        np.exp(np.asarray(target_value)),
+        earth_flux[target_support],
+        rtol=2.0e-11,
+        atol=0.0,
     )
     assert jacobian.shape == (energy.size, 4)
     assert np.all(np.isfinite(jacobian))

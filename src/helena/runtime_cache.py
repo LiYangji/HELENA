@@ -1,14 +1,14 @@
-"""Host-side persistent cache for fixed Bethe--Heitler pair responses."""
+"""Strict host-side persistent BH and gamma-gamma fixed-grid responses."""
 
-from datetime import datetime, timezone
-from hashlib import sha256
 import json
 import os
-from pathlib import Path
 import shutil
 import sys
-from tempfile import NamedTemporaryFile, TemporaryDirectory
 import urllib.request
+from datetime import datetime, timezone
+from hashlib import sha256
+from pathlib import Path
+from tempfile import NamedTemporaryFile, TemporaryDirectory
 from zipfile import BadZipFile, ZipFile
 
 import jax
@@ -16,12 +16,20 @@ import jax.numpy as jnp
 import numpy as np
 
 import helena.core.jax_backend.kernels.bethe_heitler as bh_module
+from helena._cache_manifest_v0_1_1 import OFFICIAL_RESPONSE_CACHE_RESOURCE
 
 __all__ = [
     "BetheHeitlerResponseCacheInvalid",
     "BetheHeitlerResponseCacheMiss",
+    "GammaGammaResponseCacheInvalid",
+    "GammaGammaResponseCacheMiss",
     "bethe_heitler_response_fingerprint",
+    "fetch_current_c513_response_cache",
+    "gamma_gamma_response_fingerprint",
     "load_or_prepare_bethe_heitler_pair_response_jax",
+    "load_or_prepare_gamma_gamma_response_jax",
+    "prepare_current_c513_bethe_heitler_cache",
+    "prepare_current_c513_response_cache",
 ]
 
 _CACHE_SCHEMA_VERSION = 1
@@ -36,8 +44,8 @@ def _resource_filename(fingerprint, suffix):
     return f"bh_pair_response_{fingerprint}.{suffix}"
 
 
-# Package-owned v0.1 resource binding. The version-specific release asset and
-# validated file identities are fixed. Patch releases can reuse this physics/grid identity.
+# Immutable v0.1 resource binding, retained only for explicit legacy access.
+# Current C513 grids have different fingerprints; never relabel this archive.
 OFFICIAL_BH_CACHE_RESOURCE = {
     "resource_name": "helena_bethe_heitler_c513_responses",
     "cache_format_version": _CACHE_SCHEMA_VERSION,
@@ -224,9 +232,7 @@ def _platform_cache_root():
     if sys.platform.startswith("win"):
         local = os.environ.get("LOCALAPPDATA")
         base = (
-            _path(local, "LOCALAPPDATA")
-            if local
-            else Path.home() / "AppData" / "Local"
+            _path(local, "LOCALAPPDATA") if local else Path.home() / "AppData" / "Local"
         )
         return base / "helena" / "Cache"
     xdg = os.environ.get("XDG_CACHE_HOME")
@@ -259,7 +265,7 @@ def _file_sha256(path):
 
 
 def validate_official_bethe_heitler_cache(cache_dir=None):
-    """Validate the complete official resource without downloading or building."""
+    """Validate the immutable legacy v0.1 resource, not current C513 grids."""
     directory = _directory(cache_dir)
     resource = OFFICIAL_BH_CACHE_RESOURCE
     if not directory.is_dir():
@@ -288,15 +294,14 @@ def validate_official_bethe_heitler_cache(cache_dir=None):
                 raise BetheHeitlerResponseCacheInvalid(
                     f"official cache fingerprint mismatch: {filename}"
                 )
-            if compatibility.get("cache_schema_version") != resource[
-                "cache_format_version"
-            ]:
+            if (
+                compatibility.get("cache_schema_version")
+                != resource["cache_format_version"]
+            ):
                 raise BetheHeitlerResponseCacheInvalid(
                     f"official cache format version mismatch: {filename}"
                 )
-            if physics.get("response_version") != resource[
-                "physics_response_version"
-            ]:
+            if physics.get("response_version") != resource["physics_response_version"]:
                 raise BetheHeitlerResponseCacheInvalid(
                     f"official cache physics-response version mismatch: {filename}"
                 )
@@ -340,9 +345,10 @@ def validate_official_bethe_heitler_cache(cache_dir=None):
 def _download_official_archive(url, expected_sha256, destination):
     digest = sha256()
     try:
-        with urllib.request.urlopen(url, timeout=120) as source, destination.open(
-            "xb"
-        ) as target:
+        with (
+            urllib.request.urlopen(url, timeout=120) as source,
+            destination.open("xb") as target,
+        ):
             while block := source.read(1024 * 1024):
                 target.write(block)
                 digest.update(block)
@@ -359,7 +365,7 @@ def _download_official_archive(url, expected_sha256, destination):
 
 
 def fetch_official_bethe_heitler_cache(cache_dir=None):
-    """Fetch, verify, and atomically install the package-owned BH resource."""
+    """Fetch the immutable legacy v0.1 BH resource with strict SHA checks."""
     directory = _directory(cache_dir)
     if directory.exists():
         return validate_official_bethe_heitler_cache(directory)
@@ -378,9 +384,7 @@ def fetch_official_bethe_heitler_cache(cache_dir=None):
     ) as temporary:
         temporary = Path(temporary)
         archive_path = temporary / "resource.zip"
-        _download_official_archive(
-            archive["url"], archive["sha256"], archive_path
-        )
+        _download_official_archive(archive["url"], archive["sha256"], archive_path)
         payload = temporary / "payload"
         payload.mkdir()
         try:
@@ -393,9 +397,10 @@ def fetch_official_bethe_heitler_cache(cache_dir=None):
                         "official cache archive file manifest mismatch"
                     )
                 for filename in resource["files"]:
-                    with bundle.open(filename) as source, (payload / filename).open(
-                        "xb"
-                    ) as target:
+                    with (
+                        bundle.open(filename) as source,
+                        (payload / filename).open("xb") as target,
+                    ):
                         shutil.copyfileobj(source, target, length=1024 * 1024)
                         target.flush()
                         os.fsync(target.fileno())
@@ -536,3 +541,332 @@ def load_or_prepare_bethe_heitler_pair_response_jax(
         )
     _atomic_save(directory, fingerprint, compatibility, response_array)
     return _load(directory, fingerprint, compatibility, expected_shape)
+
+
+def _current_c513_bh_grids():
+    # Lazy import avoids a runtime_cache <-> c513 import cycle.
+    from helena.core.jax_backend.chains.steady_state_hadronic_cascade import (
+        _target_components,
+    )
+    from helena.models.c513 import build_c513_configuration
+
+    setup = build_c513_configuration()
+    configuration = setup["production_configuration"]
+    components = _target_components(
+        setup["initial_internal_photon_state_blob"],
+        setup["fixed_external_photon_state_blob"],
+    )
+    return {
+        name: (
+            np.asarray(configuration["electron_gamma"]),
+            np.asarray(configuration["proton_gamma"]),
+            np.asarray(component["energy_erg"]),
+        )
+        for name, component in components.items()
+    }
+
+
+def prepare_current_c513_bethe_heitler_cache(cache_dir=None, *, allow_build=False):
+    """Validate or explicitly build BH responses for the current C513 axes.
+
+    Uses the same blob-frame float64 daughter/proton Lorentz factors and
+    target energies (erg) as normal model preparation, including the external
+    target. It performs no model iteration, gamma-gamma response construction,
+    or network access. Exact grid, physics, dtype and SHA checks are inherited
+    from the persistent loader. An explicit build can be expensive and writes
+    only the selected cache directory. Returns that resolved directory.
+    """
+    directory = _directory(cache_dir)
+    for grids in _current_c513_bh_grids().values():
+        response = load_or_prepare_bethe_heitler_pair_response_jax(
+            *grids, cache_dir=directory, allow_build=allow_build
+        )
+        response.block_until_ready()
+    return directory
+
+
+class GammaGammaResponseCacheMiss(BetheHeitlerResponseCacheMiss):
+    """An exact persistent gamma-gamma response is unavailable."""
+
+
+class GammaGammaResponseCacheInvalid(BetheHeitlerResponseCacheInvalid):
+    """A gamma-gamma cache failed strict grid, method or payload validation."""
+
+
+def _gamma_gamma_compatibility(photon_energy_erg, lepton_gamma, target_energy_erg=None):
+    from helena.core.jax_backend.chains import gamma_gamma_pair_source as total
+    from helena.core.jax_backend.kernels import gamma_gamma_absorption as absorption
+    from helena.core.jax_backend.kernels import gamma_gamma_pair_injection as pair
+
+    inputs = {"photon_energy_erg": photon_energy_erg, "lepton_gamma": lepton_gamma}
+    if target_energy_erg is not None:
+        inputs["target_photon_energy_erg"] = target_energy_erg
+    arrays, identities = {}, {}
+    for name, values in inputs.items():
+        a, identity = _array_identity(name, values)
+        minimum = 1.0 if name == "lepton_gamma" else 0.0
+        if a.size < 2 or np.any(a <= minimum) or np.any(np.diff(a) <= 0):
+            raise ValueError(f"{name} must be strictly increasing above {minimum}")
+        arrays[name], identities[name] = a, identity
+    physics = {
+        "method": "Bottcher_Schlickeiser_1997_Breit_Wheeler",
+        "configuration": json.loads(json.dumps(pair._PAIR_RESPONSE_CONFIGURATION)),
+        "module_sha256": {
+            module.__name__: _file_sha256(Path(module.__file__))
+            for module in (pair, absorption, total)
+        },
+        "float_precision": "float64",
+        "layout": "daughter,photon,target",
+        "normalization": "c_and_both_dE_weights_no_same_population_half",
+        "population": (
+            "internal_x_external"
+            if target_energy_erg is not None
+            else "internal_x_internal"
+        ),
+    }
+    compatibility = {"cache_schema_version": 1, "grids": identities, "physics": physics}
+    encoded = json.dumps(compatibility, sort_keys=True, separators=(",", ":")).encode()
+    return arrays, compatibility, sha256(encoded).hexdigest()
+
+
+def gamma_gamma_response_fingerprint(
+    photon_energy_erg, lepton_gamma, target_energy_erg=None
+):
+    """Exact blob-frame erg / daughter-gamma / method identity, outside tracing."""
+    return _gamma_gamma_compatibility(
+        photon_energy_erg, lepton_gamma, target_energy_erg
+    )[2]
+
+
+def _gamma_gamma_paths(directory, fingerprint):
+    stem = f"gg_pair_response_{fingerprint}"
+    return directory / f"{stem}.npz", directory / f"{stem}.json"
+
+
+def _validate_gamma_gamma_payload(response, axes):
+    external = "target_photon_energy_erg" in axes
+    expected = set(axes) | {"pair_response"}
+    if not external:
+        expected |= {
+            "photon_integration_weights_erg",
+            "lepton_integration_weights",
+            "absorption_kernel_cm2",
+            "lower_support_mask",
+            "upper_support_mask",
+        }
+    if set(response) != expected:
+        raise GammaGammaResponseCacheInvalid("gamma-gamma payload fields mismatch")
+    for name, axis in axes.items():
+        if not np.array_equal(response[name], axis):
+            raise GammaGammaResponseCacheInvalid(f"gamma-gamma {name} values mismatch")
+    p, d = len(axes["photon_energy_erg"]), len(axes["lepton_gamma"])
+    t = len(axes["target_photon_energy_erg"]) if external else p
+    shapes = {name: a.shape for name, a in axes.items()}
+    shapes["pair_response"] = (d, p, t)
+    if not external:
+        shapes.update(
+            photon_integration_weights_erg=(p,),
+            lepton_integration_weights=(d,),
+            absorption_kernel_cm2=(p, p),
+            lower_support_mask=(p, p),
+            upper_support_mask=(p, p),
+        )
+    for name, value in response.items():
+        dtype = np.dtype(bool if name.endswith("support_mask") else np.float64)
+        if value.shape != shapes[name] or value.dtype != dtype:
+            raise GammaGammaResponseCacheInvalid(
+                f"gamma-gamma {name} shape/dtype mismatch"
+            )
+        if not np.all(np.isfinite(value)) or np.any(value < 0):
+            raise GammaGammaResponseCacheInvalid(
+                f"gamma-gamma {name} must be finite nonnegative"
+            )
+
+
+def _load_gamma_gamma(directory, fingerprint, compatibility, axes):
+    archive, metadata_path = _gamma_gamma_paths(directory, fingerprint)
+    if not archive.is_file() or not metadata_path.is_file():
+        raise GammaGammaResponseCacheMiss(
+            f"gamma-gamma response cache miss for {fingerprint}; run 'helena cache fetch' "
+            "or explicitly 'helena cache build' with the same cache directory"
+        )
+    try:
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        if (
+            metadata.get("fingerprint") != fingerprint
+            or metadata.get("compatibility") != compatibility
+        ):
+            raise GammaGammaResponseCacheInvalid(
+                "gamma-gamma cache compatibility mismatch"
+            )
+        with np.load(archive, allow_pickle=False) as bundle:
+            response = {name: bundle[name] for name in bundle.files}
+        _validate_gamma_gamma_payload(response, axes)
+        identities = {name: _response_identity(a)[1] for name, a in response.items()}
+        if metadata.get("arrays") != identities:
+            raise GammaGammaResponseCacheInvalid(
+                "gamma-gamma cached array identity mismatch"
+            )
+    except GammaGammaResponseCacheInvalid:
+        raise
+    except (OSError, ValueError, KeyError) as error:
+        raise GammaGammaResponseCacheInvalid(
+            f"unreadable gamma-gamma cache: {error}"
+        ) from error
+    return {name: jnp.asarray(a) for name, a in response.items()}
+
+
+def _atomic_save_gamma_gamma(directory, fingerprint, compatibility, response):
+    directory.mkdir(parents=True, exist_ok=True)
+    archive, metadata_path = _gamma_gamma_paths(directory, fingerprint)
+    arrays = {name: np.asarray(a) for name, a in response.items()}
+    metadata = {
+        "fingerprint": fingerprint,
+        "compatibility": compatibility,
+        "arrays": {name: _response_identity(a)[1] for name, a in arrays.items()},
+    }
+    with TemporaryDirectory(dir=directory, prefix=".gg-save-") as temporary:
+        staged = Path(temporary)
+        np.savez_compressed(staged / archive.name, **arrays)
+        (staged / metadata_path.name).write_text(
+            json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        os.replace(staged / archive.name, archive)
+        os.replace(staged / metadata_path.name, metadata_path)
+
+
+def load_or_prepare_gamma_gamma_response_jax(
+    photon_energy_erg,
+    lepton_gamma,
+    target_energy_erg=None,
+    *,
+    cache_dir=None,
+    allow_build=False,
+):
+    """Load exact fixed gamma-gamma arrays, or explicitly prepare and persist them.
+
+    Photon/target energies are blob-frame erg; daughters are total-energy Lorentz
+    factors. Internal responses retain both density factors and the external
+    response is labelled internal x reservoir (no event half). Only fixed grids
+    and kernels are stored, never densities or fitted parameters. Normal loads
+    never download, rebuild, interpolate or coerce precision. ``target_energy_erg``
+    selects the external response; the same existing physical builders are used.
+    """
+    if not isinstance(allow_build, (bool, np.bool_)):
+        raise TypeError("allow_build must be boolean")
+    axes, compatibility, fingerprint = _gamma_gamma_compatibility(
+        photon_energy_erg, lepton_gamma, target_energy_erg
+    )
+    directory = _directory(cache_dir)
+    try:
+        return _load_gamma_gamma(directory, fingerprint, compatibility, axes)
+    except (GammaGammaResponseCacheMiss, GammaGammaResponseCacheInvalid):
+        if not allow_build:
+            raise
+    from helena.core.jax_backend.chains.gamma_gamma_pair_source import (
+        prepare_gamma_gamma_total_field_response_jax,
+    )
+    from helena.core.jax_backend.kernels.gamma_gamma_pair_injection import (
+        prepare_gamma_gamma_pair_response_jax,
+    )
+
+    if target_energy_erg is None:
+        response = prepare_gamma_gamma_total_field_response_jax(
+            photon_energy_erg, lepton_gamma
+        )
+    else:
+        response = {
+            **axes,
+            "pair_response": prepare_gamma_gamma_pair_response_jax(
+                lepton_gamma, photon_energy_erg, target_energy_erg
+            ),
+        }
+    arrays = {name: np.asarray(a) for name, a in response.items()}
+    _validate_gamma_gamma_payload(arrays, axes)
+    _atomic_save_gamma_gamma(directory, fingerprint, compatibility, arrays)
+    return _load_gamma_gamma(directory, fingerprint, compatibility, axes)
+
+
+def _current_c513_gamma_gamma_grids():
+    from helena.models.c513 import build_c513_configuration
+
+    setup = build_c513_configuration()
+    config = setup["production_configuration"]
+    common = (
+        np.asarray(config["gamma_ray_energy_erg"]),
+        np.asarray(config["pair_daughter_gamma"]),
+    )
+    return {
+        "internal": (*common, None),
+        "external": (
+            *common,
+            np.asarray(setup["fixed_external_photon_state_blob"]["energy_erg"]),
+        ),
+    }
+
+
+def prepare_current_c513_response_cache(cache_dir=None, *, allow_build=False):
+    """Strict current BH and gamma-gamma internal/external preparation, no network."""
+    directory = prepare_current_c513_bethe_heitler_cache(
+        cache_dir, allow_build=allow_build
+    )
+    for grids in _current_c513_gamma_gamma_grids().values():
+        response = load_or_prepare_gamma_gamma_response_jax(
+            *grids, cache_dir=directory, allow_build=allow_build
+        )
+        jax.block_until_ready(response)
+    return directory
+
+
+def fetch_current_c513_response_cache(cache_dir=None):
+    """Fetch individually versioned v0.1.1 assets, SHA-check before installation.
+
+    Existing files are never overwritten: a conflicting file is an explicit
+    error. Missing files are downloaded into staging first. The old v0.1.0
+    binding and explicit legacy operations remain unchanged.
+    """
+    directory = _directory(cache_dir)
+    resource = OFFICIAL_RESPONSE_CACHE_RESOURCE
+    files = resource.get("files", {})
+    if not files:
+        raise BetheHeitlerCacheResourceUnavailable(
+            "v0.1.1 cache resources are not yet bound; use 'helena cache build'"
+        )
+    directory.parent.mkdir(parents=True, exist_ok=True)
+    with TemporaryDirectory(dir=directory.parent, prefix=".helena-fetch-") as temporary:
+        staged = Path(temporary)
+        missing = []
+        for filename, expected in files.items():
+            if Path(filename).name != filename or filename in (".", ".."):
+                raise BetheHeitlerResponseCacheInvalid("unsafe cache resource filename")
+            path = directory / filename
+            if path.exists():
+                if (
+                    path.stat().st_size != expected["size"]
+                    or _file_sha256(path) != expected["sha256"]
+                ):
+                    raise BetheHeitlerResponseCacheInvalid(
+                        f"existing cache file conflicts with release: {filename}; use an empty --cache-dir"
+                    )
+                continue
+            _download_official_archive(
+                resource["base_url"] + "/" + filename,
+                expected["sha256"],
+                staged / filename,
+            )
+            if (staged / filename).stat().st_size != expected["size"]:
+                raise BetheHeitlerResponseCacheInvalid(
+                    f"cache resource size mismatch: {filename}"
+                )
+            missing.append(filename)
+        directory.mkdir(exist_ok=True)
+        for filename in missing:
+            destination = directory / filename
+            if destination.exists():
+                if _file_sha256(destination) != files[filename]["sha256"]:
+                    raise BetheHeitlerResponseCacheInvalid(
+                        f"cache file appeared during fetch: {filename}"
+                    )
+            else:
+                os.replace(staged / filename, destination)
+    return prepare_current_c513_response_cache(directory)

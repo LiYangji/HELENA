@@ -1,4 +1,4 @@
-"""Minimal steady internal electron-photon cascade closure."""
+"""Steady particles and one internal photon population on a common energy grid."""
 
 from numbers import Integral
 
@@ -7,17 +7,23 @@ import jax.numpy as jnp
 import numpy as np
 
 from helena.core.constants import (
+    ELECTRON_MASS_CGS as _M_E_CGS,
+)
+from helena.core.constants import (
     ELECTRON_REST_ENERGY_CGS as _MEC2_CGS,
+)
+from helena.core.constants import (
+    ELEMENTARY_CHARGE_ESU as _E_ESU,
+)
+from helena.core.constants import (
+    PROTON_MASS_CGS as _M_P_CGS,
 )
 from helena.core.constants import (
     SPEED_OF_LIGHT_CGS as _C_CGS,
 )
-from helena.core.contracts import real_1d as _real_1d
-from helena.core.jax_backend.chains.blob_intrinsic_radiation import (
-    _blob_intrinsic_radiation_with_high_synchrotron_jax,
-)
 from helena.core.jax_backend.chains.gamma_gamma_pair_source import (
-    gamma_gamma_pair_source_chain_jax,
+    gamma_gamma_total_field_jax,
+    prepare_gamma_gamma_total_field_response_jax,
 )
 from helena.core.jax_backend.chains.total_lepton_transport import (
     total_lepton_transport_chain_jax,
@@ -27,6 +33,7 @@ from helena.core.jax_backend.kernels.gamma_gamma_absorption import (
     _contains_tracer,
 )
 from helena.core.jax_backend.kernels.gamma_gamma_pair_injection import (
+    _contract_pair_response,
     prepare_gamma_gamma_pair_response_jax,
 )
 from helena.core.jax_backend.kernels.inverse_compton_cooling import (
@@ -34,11 +41,27 @@ from helena.core.jax_backend.kernels.inverse_compton_cooling import (
 )
 from helena.core.jax_backend.radiation.inverse_compton import inverse_compton_sed_jax
 from helena.core.jax_backend.radiation.photon_fields import (
-    synchrotron_sed_to_internal_photon_density_jax,
+    _internal_photon_density_kernel,
 )
-from helena.core.jax_backend.radiation.ssa import _transfer_from_quantities
+from helena.core.jax_backend.radiation.ssa import (
+    _sphere_attenuation_factor_jax,
+    synchrotron_absorption_coefficient_jax,
+)
+from helena.core.jax_backend.radiation.synchrotron import (
+    electron_synchrotron_sed_jax,
+    synchrotron_sed_jax,
+)
 
 __all__ = ["steady_state_electromagnetic_cascade_jax"]
+_PHOTON_COMPONENTS = (
+    "electron_synchrotron",
+    "proton_synchrotron",
+    "pion_synchrotron",
+    "muon_synchrotron",
+    "internal_ic",
+    "external_compton",
+    "pi0",
+)
 
 
 def _positive_iteration_scalar(name, value, *, upper=None):
@@ -163,731 +186,6 @@ def _safe_ratio(numerator, denominator):
     return jnp.where(denominator == 0.0, 0.0, numerator / safe_denominator)
 
 
-def _exact_collision_energy_rate(
-    gamma_ray_energy_erg,
-    internal_gamma_photon_density_cm3_erg,
-    target_photon_energy_erg,
-    dn_target_photon_denergy_cm3_erg,
-):
-    gamma_ray_energy = jnp.asarray(gamma_ray_energy_erg, dtype=jnp.float64)
-    target_energy = jnp.asarray(target_photon_energy_erg, dtype=jnp.float64)
-    target_density = jnp.asarray(
-        dn_target_photon_denergy_cm3_erg,
-        dtype=jnp.float64,
-    )
-    y = gamma_ray_energy[:, None] * target_energy[None, :] / _MEC2_CGS**2
-    exact_inner = jnp.trapezoid(
-        target_energy[None, :]
-        * target_density[None, :]
-        * _angle_averaged_cross_section_jax(y)
-        * (gamma_ray_energy[:, None] + target_energy[None, :]),
-        x=jnp.log(target_energy),
-        axis=1,
-    )
-    return _C_CGS * jnp.trapezoid(
-        gamma_ray_energy * internal_gamma_photon_density_cm3_erg * exact_inner,
-        x=jnp.log(gamma_ray_energy),
-    )
-
-
-def _iteration_map(
-    electron_gamma,
-    pair_daughter_gamma,
-    pair_source_remap_operator,
-    synchrotron_photon_energy_erg,
-    gamma_ray_energy_erg,
-    synchrotron_primary_split_energy_erg,
-    primary_electron_injection_dgamma_cm3_s,
-    primary_positron_injection_dgamma_cm3_s,
-    muon_decay_electron_injection_dgamma_cm3_s,
-    muon_decay_positron_injection_dgamma_cm3_s,
-    bethe_heitler_electron_injection_dgamma_cm3_s,
-    bethe_heitler_positron_injection_dgamma_cm3_s,
-    electron_pair_injection_dgamma_cm3_s,
-    positron_pair_injection_dgamma_cm3_s,
-    ssc_inverse_compton_loss_rate_dgamma_s,
-    proton_gamma,
-    proton_density_dgamma_cm3,
-    pi0_decay_photon_injection_cm3_s_erg,
-    external_seed_photon_energy_erg,
-    dn_external_seed_photon_denergy_cm3_erg,
-    dn_external_compton_seed_photon_denergy_cm3_erg,
-    include_external_gamma_gamma_target,
-    enable_internal_gamma_gamma,
-    enable_ssc,
-    compose_proton_synchrotron_low_energy,
-    magnetic_field_G,
-    radius_cm,
-    adiabatic_rate_s_inv,
-    escape_rate_s_inv,
-    external_inverse_compton_loss_rate_dgamma_s,
-    additional_fixed_inverse_compton_loss_rate_dgamma_s,
-    additional_continuous_loss_rate_dgamma_s,
-    relaxation_omega,
-    meson_synchrotron_low_energy_intrinsic_sed_erg_s=None,
-    meson_synchrotron_intrinsic_sed_erg_s=None,
-    gamma_gamma_pair_response=None,
-    external_gamma_gamma_pair_response=None,
-):
-    if meson_synchrotron_low_energy_intrinsic_sed_erg_s is None:
-        meson_synchrotron_low_energy_intrinsic_sed_erg_s = jnp.zeros_like(
-            jnp.asarray(synchrotron_photon_energy_erg, dtype=jnp.float64)
-        )
-    if meson_synchrotron_intrinsic_sed_erg_s is None:
-        meson_synchrotron_intrinsic_sed_erg_s = jnp.zeros_like(
-            jnp.asarray(gamma_ray_energy_erg, dtype=jnp.float64)
-        )
-    ssc_inverse_compton_loss_rate_dgamma_s = (
-        ssc_inverse_compton_loss_rate_dgamma_s
-        if enable_ssc
-        else jnp.zeros_like(ssc_inverse_compton_loss_rate_dgamma_s)
-    )
-    total_inverse_compton_loss = (
-        external_inverse_compton_loss_rate_dgamma_s
-        + additional_fixed_inverse_compton_loss_rate_dgamma_s
-        + ssc_inverse_compton_loss_rate_dgamma_s
-    )
-    transport = total_lepton_transport_chain_jax(
-        electron_gamma,
-        primary_electron_injection_dgamma_cm3_s,
-        primary_positron_injection_dgamma_cm3_s,
-        muon_decay_electron_injection_dgamma_cm3_s,
-        muon_decay_positron_injection_dgamma_cm3_s,
-        bethe_heitler_electron_injection_dgamma_cm3_s,
-        bethe_heitler_positron_injection_dgamma_cm3_s,
-        electron_pair_injection_dgamma_cm3_s,
-        positron_pair_injection_dgamma_cm3_s,
-        magnetic_field_G,
-        adiabatic_rate_s_inv,
-        escape_rate_s_inv,
-        inverse_compton_loss_rate_dgamma_s=total_inverse_compton_loss,
-        additional_continuous_loss_rate_dgamma_s=(
-            additional_continuous_loss_rate_dgamma_s
-        ),
-    )
-    radiation = _blob_intrinsic_radiation_with_high_synchrotron_jax(
-        synchrotron_photon_energy_erg,
-        gamma_ray_energy_erg,
-        electron_gamma,
-        transport["electron_density_dgamma_cm3"],
-        transport["positron_density_dgamma_cm3"],
-        proton_gamma,
-        proton_density_dgamma_cm3,
-        pi0_decay_photon_injection_cm3_s_erg,
-        external_seed_photon_energy_erg,
-        dn_external_compton_seed_photon_denergy_cm3_erg,
-        magnetic_field_G=magnetic_field_G,
-        radius_cm=radius_cm,
-        synchrotron_primary_split_energy_erg=(synchrotron_primary_split_energy_erg),
-        compose_proton_synchrotron_low_energy=(compose_proton_synchrotron_low_energy),
-    )
-    low_energy_intrinsic_sed = (
-        radiation["electron_synchrotron_intrinsic_sed_erg_s"]
-        + meson_synchrotron_low_energy_intrinsic_sed_erg_s
-        + (
-            radiation["proton_synchrotron_low_energy_intrinsic_sed_erg_s"]
-            if compose_proton_synchrotron_low_energy
-            else 0.0
-        )
-    )
-    internal_low_energy_density = synchrotron_sed_to_internal_photon_density_jax(
-        synchrotron_photon_energy_erg,
-        low_energy_intrinsic_sed,
-        radiation["electron_synchrotron_absorption_coefficient_cm1"],
-        radius_cm=radius_cm,
-    )
-    low_energy_escaped_sed = _transfer_from_quantities(
-        radiation["electron_synchrotron_absorption_coefficient_cm1"],
-        low_energy_intrinsic_sed,
-        radius_cm,
-    )
-    ssc_intrinsic_sed = (
-        inverse_compton_sed_jax(
-            gamma_ray_energy_erg,
-            electron_gamma,
-            radiation["total_lepton_density_dgamma_cm3"],
-            synchrotron_photon_energy_erg,
-            internal_low_energy_density,
-            radius_cm=radius_cm,
-        )
-        if enable_ssc
-        else jnp.zeros_like(gamma_ray_energy_erg)
-    )
-    # Keep the full-grid component diagnostic, but let the high composition own
-    # only nodes strictly above the canonical split; the low grid owns the split.
-    ssc_high_energy_intrinsic_sed = jnp.where(
-        jnp.asarray(gamma_ray_energy_erg)
-        > radiation["synchrotron_split_energy_erg"],
-        ssc_intrinsic_sed,
-        0.0,
-    )
-    ssc_delta = (
-        ssc_high_energy_intrinsic_sed - radiation["ssc_intrinsic_sed_erg_s"]
-    )
-    radiation = {
-        **radiation,
-        "meson_synchrotron_low_energy_intrinsic_sed_erg_s": (
-            meson_synchrotron_low_energy_intrinsic_sed_erg_s
-        ),
-        "total_low_energy_synchrotron_intrinsic_sed_erg_s": (low_energy_intrinsic_sed),
-        "total_low_energy_synchrotron_escaped_sed_erg_s": (low_energy_escaped_sed),
-        "total_low_energy_synchrotron_primary_intrinsic_sed_erg_s": (
-            radiation["electron_synchrotron_target_band_intrinsic_sed_erg_s"]
-            + meson_synchrotron_low_energy_intrinsic_sed_erg_s
-            + (
-                radiation["proton_synchrotron_low_energy_intrinsic_sed_erg_s"]
-                if compose_proton_synchrotron_low_energy
-                else 0.0
-            )
-        ),
-        "internal_synchrotron_photon_density_cm3_erg": (internal_low_energy_density),
-        "ssc_intrinsic_sed_erg_s": ssc_intrinsic_sed,
-        "ssc_high_energy_intrinsic_sed_erg_s": ssc_high_energy_intrinsic_sed,
-        "total_leptonic_gamma_intrinsic_sed_erg_s": (
-            radiation["total_leptonic_gamma_intrinsic_sed_erg_s"] + ssc_delta
-        ),
-        "meson_synchrotron_intrinsic_sed_erg_s": (
-            meson_synchrotron_intrinsic_sed_erg_s
-        ),
-        "total_hadronic_gamma_intrinsic_sed_erg_s": (
-            radiation["total_hadronic_gamma_intrinsic_sed_erg_s"]
-            + meson_synchrotron_intrinsic_sed_erg_s
-        ),
-        "total_gamma_intrinsic_sed_erg_s": (
-            radiation["total_gamma_intrinsic_sed_erg_s"]
-            + ssc_delta
-            + meson_synchrotron_intrinsic_sed_erg_s
-        ),
-    }
-    pair_source = gamma_gamma_pair_source_chain_jax(
-        gamma_ray_energy_erg,
-        radiation["total_gamma_intrinsic_sed_erg_s"],
-        synchrotron_photon_energy_erg,
-        (
-            radiation["internal_synchrotron_photon_density_cm3_erg"]
-            if enable_internal_gamma_gamma
-            else jnp.zeros_like(
-                radiation["internal_synchrotron_photon_density_cm3_erg"]
-            )
-        ),
-        pair_daughter_gamma,
-        radius_cm=radius_cm,
-        external_target_photon_energy_erg=external_seed_photon_energy_erg,
-        dn_external_target_photon_denergy_cm3_erg=(
-            dn_external_seed_photon_denergy_cm3_erg
-        ),
-        include_external_gamma_gamma_target=(include_external_gamma_gamma_target),
-        internal_pair_response=gamma_gamma_pair_response,
-        external_pair_response=external_gamma_gamma_pair_response,
-    )
-    high_resolution_raw_electron = pair_source["electron_pair_injection_dgamma_cm3_s"]
-    high_resolution_raw_positron = pair_source["positron_pair_injection_dgamma_cm3_s"]
-    if pair_source_remap_operator is None:
-        raw_electron = high_resolution_raw_electron
-        raw_positron = high_resolution_raw_positron
-    else:
-        raw_electron = _conservative_pair_source_remap_jax(
-            high_resolution_raw_electron,
-            pair_source_remap_operator,
-        )
-        raw_positron = _conservative_pair_source_remap_jax(
-            high_resolution_raw_positron,
-            pair_source_remap_operator,
-        )
-    raw_ssc = (
-        electron_inverse_compton_loss_rate_dgamma_s_jax(
-            electron_gamma,
-            synchrotron_photon_energy_erg,
-            radiation["internal_synchrotron_photon_density_cm3_erg"],
-        )
-        if enable_ssc
-        else jnp.zeros_like(electron_gamma)
-    )
-    relaxed_electron = (
-        1.0 - relaxation_omega
-    ) * electron_pair_injection_dgamma_cm3_s + relaxation_omega * raw_electron
-    relaxed_positron = (
-        1.0 - relaxation_omega
-    ) * positron_pair_injection_dgamma_cm3_s + relaxation_omega * raw_positron
-    relaxed_ssc = (
-        1.0 - relaxation_omega
-    ) * ssc_inverse_compton_loss_rate_dgamma_s + relaxation_omega * raw_ssc
-    return {
-        "transport": transport,
-        "radiation": radiation,
-        "pair_source": pair_source,
-        "electron_pair_injection_dgamma_cm3_s": (electron_pair_injection_dgamma_cm3_s),
-        "positron_pair_injection_dgamma_cm3_s": (positron_pair_injection_dgamma_cm3_s),
-        "external_inverse_compton_loss_rate_dgamma_s": (
-            external_inverse_compton_loss_rate_dgamma_s
-        ),
-        "additional_fixed_inverse_compton_loss_rate_dgamma_s": (
-            additional_fixed_inverse_compton_loss_rate_dgamma_s
-        ),
-        "ssc_inverse_compton_loss_rate_dgamma_s": (
-            ssc_inverse_compton_loss_rate_dgamma_s
-        ),
-        "total_inverse_compton_loss_rate_dgamma_s": total_inverse_compton_loss,
-        "raw_next_high_resolution_electron_pair_injection_dgamma_cm3_s": (
-            high_resolution_raw_electron
-        ),
-        "raw_next_high_resolution_positron_pair_injection_dgamma_cm3_s": (
-            high_resolution_raw_positron
-        ),
-        "raw_next_electron_pair_injection_dgamma_cm3_s": raw_electron,
-        "raw_next_positron_pair_injection_dgamma_cm3_s": raw_positron,
-        "mapped_raw_next_electron_pair_injection_dgamma_cm3_s": raw_electron,
-        "mapped_raw_next_positron_pair_injection_dgamma_cm3_s": raw_positron,
-        "raw_next_ssc_inverse_compton_loss_rate_dgamma_s": raw_ssc,
-        "relaxed_next_electron_pair_injection_dgamma_cm3_s": (relaxed_electron),
-        "relaxed_next_positron_pair_injection_dgamma_cm3_s": (relaxed_positron),
-        "relaxed_next_ssc_inverse_compton_loss_rate_dgamma_s": relaxed_ssc,
-    }
-
-
-def _monitored_residuals(
-    state,
-    previous_state,
-    electron_gamma,
-    synchrotron_photon_energy_erg,
-    gamma_ray_energy_erg,
-):
-    electron_density = _symmetric_relative_l1(
-        state["transport"]["electron_density_dgamma_cm3"],
-        previous_state["transport"]["electron_density_dgamma_cm3"],
-        electron_gamma,
-    )
-    positron_density = _symmetric_relative_l1(
-        state["transport"]["positron_density_dgamma_cm3"],
-        previous_state["transport"]["positron_density_dgamma_cm3"],
-        electron_gamma,
-    )
-    electron_pair_fixed_point = _symmetric_relative_l1(
-        state["raw_next_electron_pair_injection_dgamma_cm3_s"],
-        state["electron_pair_injection_dgamma_cm3_s"],
-        electron_gamma,
-    )
-    positron_pair_fixed_point = _symmetric_relative_l1(
-        state["raw_next_positron_pair_injection_dgamma_cm3_s"],
-        state["positron_pair_injection_dgamma_cm3_s"],
-        electron_gamma,
-    )
-    pair_fixed_point = jnp.maximum(
-        electron_pair_fixed_point,
-        positron_pair_fixed_point,
-    )
-    electron_pair_update = _symmetric_relative_l1(
-        state["relaxed_next_electron_pair_injection_dgamma_cm3_s"],
-        state["electron_pair_injection_dgamma_cm3_s"],
-        electron_gamma,
-    )
-    positron_pair_update = _symmetric_relative_l1(
-        state["relaxed_next_positron_pair_injection_dgamma_cm3_s"],
-        state["positron_pair_injection_dgamma_cm3_s"],
-        electron_gamma,
-    )
-    pair_update = jnp.maximum(electron_pair_update, positron_pair_update)
-    ssc_cooling_fixed_point = _symmetric_relative_l1(
-        state["raw_next_ssc_inverse_compton_loss_rate_dgamma_s"],
-        state["ssc_inverse_compton_loss_rate_dgamma_s"],
-        electron_gamma,
-    )
-    ssc_cooling_update = _symmetric_relative_l1(
-        state["relaxed_next_ssc_inverse_compton_loss_rate_dgamma_s"],
-        state["ssc_inverse_compton_loss_rate_dgamma_s"],
-        electron_gamma,
-    )
-    internal_synchrotron = _symmetric_relative_l1(
-        state["radiation"]["internal_synchrotron_photon_density_cm3_erg"],
-        previous_state["radiation"]["internal_synchrotron_photon_density_cm3_erg"],
-        synchrotron_photon_energy_erg,
-    )
-    escaped_gamma = _symmetric_relative_l1(
-        state["pair_source"]["escaped_sed_erg_s"],
-        previous_state["pair_source"]["escaped_sed_erg_s"],
-        jnp.log(gamma_ray_energy_erg),
-    )
-    cascade = jnp.maximum(
-        jnp.maximum(electron_density, positron_density),
-        jnp.maximum(
-            jnp.maximum(pair_fixed_point, ssc_cooling_fixed_point),
-            jnp.maximum(internal_synchrotron, escaped_gamma),
-        ),
-    )
-    return {
-        "electron_density": electron_density,
-        "positron_density": positron_density,
-        "electron_pair_fixed_point": electron_pair_fixed_point,
-        "positron_pair_fixed_point": positron_pair_fixed_point,
-        "pair_fixed_point": pair_fixed_point,
-        "electron_pair_update": electron_pair_update,
-        "positron_pair_update": positron_pair_update,
-        "pair_update": pair_update,
-        "ssc_cooling_fixed_point": ssc_cooling_fixed_point,
-        "ssc_cooling_update": ssc_cooling_update,
-        "electron_pair_injection": electron_pair_fixed_point,
-        "positron_pair_injection": positron_pair_fixed_point,
-        "pair_injection": pair_fixed_point,
-        "internal_synchrotron_photon_density": internal_synchrotron,
-        "escaped_gamma_sed": escaped_gamma,
-        "cascade": cascade,
-    }
-
-
-def _ledger_diagnostics(
-    state,
-    electron_gamma,
-    pair_daughter_gamma,
-    synchrotron_photon_energy_erg,
-    gamma_ray_energy_erg,
-    external_seed_photon_energy_erg,
-    dn_external_seed_photon_denergy_cm3_erg,
-    enable_internal_gamma_gamma,
-    include_external_gamma_gamma_target,
-    compose_proton_synchrotron_low_energy,
-):
-    transport = state["transport"]
-    radiation = state["radiation"]
-    pair_source = state["pair_source"]
-    explicit_electron_source = (
-        transport["primary_electron_injection_dgamma_cm3_s"]
-        + transport["muon_decay_electron_injection_dgamma_cm3_s"]
-        + transport["bethe_heitler_electron_injection_dgamma_cm3_s"]
-        + state["electron_pair_injection_dgamma_cm3_s"]
-    )
-    explicit_positron_source = (
-        transport["primary_positron_injection_dgamma_cm3_s"]
-        + transport["muon_decay_positron_injection_dgamma_cm3_s"]
-        + transport["bethe_heitler_positron_injection_dgamma_cm3_s"]
-        + state["positron_pair_injection_dgamma_cm3_s"]
-    )
-    electron_source_residual = _symmetric_relative_l1(
-        transport["total_electron_injection_dgamma_cm3_s"],
-        explicit_electron_source,
-        electron_gamma,
-    )
-    positron_source_residual = _symmetric_relative_l1(
-        transport["total_positron_injection_dgamma_cm3_s"],
-        explicit_positron_source,
-        electron_gamma,
-    )
-
-    gamma_coordinate = jnp.log(gamma_ray_energy_erg)
-    explicit_intrinsic_gamma = (
-        radiation["electron_synchrotron_high_energy_intrinsic_sed_erg_s"]
-        + radiation["ssc_high_energy_intrinsic_sed_erg_s"]
-        + radiation["external_compton_intrinsic_sed_erg_s"]
-        + (
-            (
-                radiation["proton_synchrotron_high_energy_intrinsic_sed_erg_s"]
-                if compose_proton_synchrotron_low_energy
-                else radiation["proton_synchrotron_intrinsic_sed_erg_s"]
-            )
-            + radiation["pi0_intrinsic_sed_erg_s"]
-            + radiation["meson_synchrotron_intrinsic_sed_erg_s"]
-        )
-    )
-    intrinsic_gamma_residual = _symmetric_relative_l1(
-        radiation["total_gamma_intrinsic_sed_erg_s"],
-        explicit_intrinsic_gamma,
-        gamma_coordinate,
-    )
-    transfer_residual = _symmetric_relative_l1(
-        pair_source["intrinsic_sed_erg_s"],
-        pair_source["escaped_sed_erg_s"] + pair_source["removed_sed_erg_s"],
-        gamma_coordinate,
-    )
-
-    volume = pair_source["volume_cm3"]
-    gamma_ray_energy = jnp.asarray(gamma_ray_energy_erg, dtype=jnp.float64)
-    denominator = volume * gamma_ray_energy**2
-    production_rate = pair_source["intrinsic_sed_erg_s"] / denominator
-    escaped_rate = pair_source["escaped_sed_erg_s"] / denominator
-    absorbed_rate = pair_source["absorbed_photon_rate_cm3_s_erg"]
-    internal_production_residual = _symmetric_relative_l1(
-        production_rate,
-        escaped_rate + absorbed_rate,
-        gamma_ray_energy,
-    )
-    local_absorption_rate = (
-        _C_CGS
-        * pair_source["absorption_coefficient_cm1"]
-        * pair_source["internal_gamma_photon_density_cm3_erg"]
-    )
-    internal_absorption_residual = _symmetric_relative_l1(
-        absorbed_rate,
-        local_absorption_rate,
-        gamma_ray_energy,
-    )
-
-    high_resolution_electron_pair = state[
-        "raw_next_high_resolution_electron_pair_injection_dgamma_cm3_s"
-    ]
-    high_resolution_positron_pair = state[
-        "raw_next_high_resolution_positron_pair_injection_dgamma_cm3_s"
-    ]
-    mapped_electron_pair = state["mapped_raw_next_electron_pair_injection_dgamma_cm3_s"]
-    mapped_positron_pair = state["mapped_raw_next_positron_pair_injection_dgamma_cm3_s"]
-    electron_event_rate, electron_energy_moment = _pair_source_moments(
-        high_resolution_electron_pair,
-        pair_daughter_gamma,
-    )
-    positron_event_rate, positron_energy_moment = _pair_source_moments(
-        high_resolution_positron_pair,
-        pair_daughter_gamma,
-    )
-    mapped_electron_event_rate, mapped_electron_energy_moment = _pair_source_moments(
-        mapped_electron_pair,
-        electron_gamma,
-    )
-    mapped_positron_event_rate, mapped_positron_energy_moment = _pair_source_moments(
-        mapped_positron_pair,
-        electron_gamma,
-    )
-    electron_pair_remap_number_residual = _symmetric_scalar_residual(
-        mapped_electron_event_rate,
-        electron_event_rate,
-    )
-    positron_pair_remap_number_residual = _symmetric_scalar_residual(
-        mapped_positron_event_rate,
-        positron_event_rate,
-    )
-    electron_pair_remap_energy_residual = _symmetric_scalar_residual(
-        mapped_electron_energy_moment,
-        electron_energy_moment,
-    )
-    positron_pair_remap_energy_residual = _symmetric_scalar_residual(
-        mapped_positron_energy_moment,
-        positron_energy_moment,
-    )
-    absorbed_event_rate = jnp.trapezoid(
-        gamma_ray_energy * absorbed_rate,
-        x=gamma_coordinate,
-    )
-    internal_target_absorbed_event_rate = _C_CGS * jnp.trapezoid(
-        gamma_ray_energy
-        * pair_source["internal_gamma_photon_density_cm3_erg"]
-        * pair_source["gamma_gamma_internal_target_absorption_coefficient_cm1"],
-        x=gamma_coordinate,
-    )
-    external_target_absorbed_event_rate = _C_CGS * jnp.trapezoid(
-        gamma_ray_energy
-        * pair_source["internal_gamma_photon_density_cm3_erg"]
-        * pair_source["gamma_gamma_external_target_absorption_coefficient_cm1"],
-        x=gamma_coordinate,
-    )
-    absorption_decomposition_absolute_residual = jnp.abs(
-        absorbed_event_rate
-        - internal_target_absorbed_event_rate
-        - external_target_absorbed_event_rate
-    )
-    absorption_decomposition_scale = jnp.maximum(
-        jnp.maximum(
-            jnp.abs(absorbed_event_rate),
-            jnp.abs(
-                internal_target_absorbed_event_rate
-                + external_target_absorbed_event_rate
-            ),
-        ),
-        jnp.finfo(jnp.float64).tiny,
-    )
-    absorption_decomposition_relative_residual = (
-        absorption_decomposition_absolute_residual / absorption_decomposition_scale
-    )
-    electron_event_residual = _symmetric_scalar_residual(
-        electron_event_rate,
-        absorbed_event_rate,
-    )
-    positron_event_residual = _symmetric_scalar_residual(
-        positron_event_rate,
-        absorbed_event_rate,
-    )
-    pair_multiplicity_residual = _symmetric_scalar_residual(
-        electron_event_rate + positron_event_rate,
-        2.0 * absorbed_event_rate,
-    )
-
-    internal_electron_event_rate, internal_electron_energy_moment = (
-        _pair_source_moments(
-            pair_source["internal_target_electron_pair_injection_dgamma_cm3_s"],
-            pair_daughter_gamma,
-        )
-    )
-    internal_positron_event_rate, internal_positron_energy_moment = (
-        _pair_source_moments(
-            pair_source["internal_target_positron_pair_injection_dgamma_cm3_s"],
-            pair_daughter_gamma,
-        )
-    )
-    external_electron_event_rate, external_electron_energy_moment = (
-        _pair_source_moments(
-            pair_source["external_target_electron_pair_injection_dgamma_cm3_s"],
-            pair_daughter_gamma,
-        )
-    )
-    external_positron_event_rate, external_positron_energy_moment = (
-        _pair_source_moments(
-            pair_source["external_target_positron_pair_injection_dgamma_cm3_s"],
-            pair_daughter_gamma,
-        )
-    )
-    internal_pair_injected_energy_rate = _MEC2_CGS * (
-        internal_electron_energy_moment + internal_positron_energy_moment
-    )
-    external_pair_injected_energy_rate = _MEC2_CGS * (
-        external_electron_energy_moment + external_positron_energy_moment
-    )
-    internal_exact_collision_energy_rate = _exact_collision_energy_rate(
-        gamma_ray_energy,
-        pair_source["internal_gamma_photon_density_cm3_erg"],
-        synchrotron_photon_energy_erg,
-        (
-            radiation["internal_synchrotron_photon_density_cm3_erg"]
-            if enable_internal_gamma_gamma
-            else jnp.zeros_like(
-                radiation["internal_synchrotron_photon_density_cm3_erg"]
-            )
-        ),
-    )
-    external_target_density = jnp.where(
-        include_external_gamma_gamma_target,
-        jnp.asarray(
-            dn_external_seed_photon_denergy_cm3_erg,
-            dtype=jnp.float64,
-        ),
-        0.0,
-    )
-    external_exact_collision_energy_rate = _exact_collision_energy_rate(
-        gamma_ray_energy,
-        pair_source["internal_gamma_photon_density_cm3_erg"],
-        external_seed_photon_energy_erg,
-        external_target_density,
-    )
-    exact_collision_energy_rate = (
-        internal_exact_collision_energy_rate + external_exact_collision_energy_rate
-    )
-    pair_injected_energy_rate = _MEC2_CGS * (
-        electron_energy_moment + positron_energy_moment
-    )
-    mapped_pair_injected_energy_rate = _MEC2_CGS * (
-        mapped_electron_energy_moment + mapped_positron_energy_moment
-    )
-    pair_energy_capture_fraction = _safe_ratio(
-        pair_injected_energy_rate,
-        exact_collision_energy_rate,
-    )
-    zero_pair_energy = (pair_injected_energy_rate == 0.0) & (
-        exact_collision_energy_rate == 0.0
-    )
-    pair_energy_deficit_fraction = jnp.where(
-        zero_pair_energy,
-        0.0,
-        jnp.abs(1.0 - pair_energy_capture_fraction),
-    )
-    pair_energy_symmetric_residual = jnp.where(
-        zero_pair_energy,
-        0.0,
-        2.0
-        * jnp.abs(1.0 - pair_energy_capture_fraction)
-        / (1.0 + pair_energy_capture_fraction),
-    )
-    pair_energy_max_relative_residual = _symmetric_scalar_residual(
-        pair_injected_energy_rate,
-        exact_collision_energy_rate,
-    )
-    inverse_compton_loss_composition_residual = _symmetric_relative_l1(
-        state["total_inverse_compton_loss_rate_dgamma_s"],
-        (
-            state["external_inverse_compton_loss_rate_dgamma_s"]
-            + state["additional_fixed_inverse_compton_loss_rate_dgamma_s"]
-            + state["ssc_inverse_compton_loss_rate_dgamma_s"]
-        ),
-        electron_gamma,
-    )
-    return {
-        "electron_source_composition_residual": electron_source_residual,
-        "positron_source_composition_residual": positron_source_residual,
-        "intrinsic_gamma_composition_residual": intrinsic_gamma_residual,
-        "gamma_gamma_transfer_residual": transfer_residual,
-        "internal_photon_production_residual": internal_production_residual,
-        "internal_photon_absorption_residual": internal_absorption_residual,
-        "absorbed_gamma_event_rate_cm3_s": absorbed_event_rate,
-        "internal_target_absorbed_gamma_event_rate_cm3_s": (
-            internal_target_absorbed_event_rate
-        ),
-        "external_target_absorbed_gamma_event_rate_cm3_s": (
-            external_target_absorbed_event_rate
-        ),
-        "absolute_absorption_decomposition_residual_cm3_s": (
-            absorption_decomposition_absolute_residual
-        ),
-        "relative_absorption_decomposition_residual": (
-            absorption_decomposition_relative_residual
-        ),
-        "absorption_decomposition_normalization_scale_cm3_s": (
-            absorption_decomposition_scale
-        ),
-        "internal_target_electron_pair_event_rate_cm3_s": (
-            internal_electron_event_rate
-        ),
-        "internal_target_positron_pair_event_rate_cm3_s": (
-            internal_positron_event_rate
-        ),
-        "external_target_electron_pair_event_rate_cm3_s": (
-            external_electron_event_rate
-        ),
-        "external_target_positron_pair_event_rate_cm3_s": (
-            external_positron_event_rate
-        ),
-        "internal_target_pair_event_rate_cm3_s": (
-            0.5 * (internal_electron_event_rate + internal_positron_event_rate)
-        ),
-        "external_target_pair_event_rate_cm3_s": (
-            0.5 * (external_electron_event_rate + external_positron_event_rate)
-        ),
-        "electron_pair_event_rate_cm3_s": electron_event_rate,
-        "positron_pair_event_rate_cm3_s": positron_event_rate,
-        "mapped_electron_pair_event_rate_cm3_s": mapped_electron_event_rate,
-        "mapped_positron_pair_event_rate_cm3_s": mapped_positron_event_rate,
-        "electron_pair_event_residual": electron_event_residual,
-        "positron_pair_event_residual": positron_event_residual,
-        "pair_multiplicity": _safe_ratio(
-            electron_event_rate + positron_event_rate,
-            absorbed_event_rate,
-        ),
-        "pair_multiplicity_residual": pair_multiplicity_residual,
-        "pair_injected_energy_rate_erg_cm3_s": pair_injected_energy_rate,
-        "internal_target_pair_injected_energy_rate_erg_cm3_s": (
-            internal_pair_injected_energy_rate
-        ),
-        "external_target_pair_injected_energy_rate_erg_cm3_s": (
-            external_pair_injected_energy_rate
-        ),
-        "mapped_pair_injected_energy_rate_erg_cm3_s": (
-            mapped_pair_injected_energy_rate
-        ),
-        "exact_collision_energy_rate_erg_cm3_s": (exact_collision_energy_rate),
-        "internal_target_exact_collision_energy_rate_erg_cm3_s": (
-            internal_exact_collision_energy_rate
-        ),
-        "external_target_exact_collision_energy_rate_erg_cm3_s": (
-            external_exact_collision_energy_rate
-        ),
-        "pair_energy_capture_fraction": pair_energy_capture_fraction,
-        "pair_energy_deficit_fraction": pair_energy_deficit_fraction,
-        "pair_energy_symmetric_residual": pair_energy_symmetric_residual,
-        "pair_energy_max_relative_residual": pair_energy_max_relative_residual,
-        "pair_energy_residual": pair_energy_max_relative_residual,
-        "electron_pair_remap_number_residual": (electron_pair_remap_number_residual),
-        "positron_pair_remap_number_residual": (positron_pair_remap_number_residual),
-        "electron_pair_remap_energy_residual": (electron_pair_remap_energy_residual),
-        "positron_pair_remap_energy_residual": (positron_pair_remap_energy_residual),
-        "inverse_compton_loss_composition_residual": (
-            inverse_compton_loss_composition_residual
-        ),
-    }
-
-
 def steady_state_electromagnetic_cascade_jax(
     synchrotron_photon_energy_erg,
     gamma_ray_energy_erg,
@@ -912,10 +210,7 @@ def steady_state_electromagnetic_cascade_jax(
     enable_internal_gamma_gamma=True,
     enable_ssc=True,
     enable_ec=True,
-    synchrotron_primary_split_energy_erg=None,
-    compose_proton_synchrotron_low_energy=False,
-    meson_synchrotron_low_energy_intrinsic_sed_erg_s=None,
-    meson_synchrotron_intrinsic_sed_erg_s=None,
+    meson_synchrotron_intrinsic_seds_erg_s=None,
     additional_fixed_inverse_compton_loss_rate_dgamma_s=0.0,
     additional_continuous_loss_rate_dgamma_s=0.0,
     pair_daughter_gamma=None,
@@ -928,524 +223,571 @@ def steady_state_electromagnetic_cascade_jax(
     relative_tolerance=1.0e-4,
     maximum_iterations=32,
 ):
-    """Return a fixed-proton steady internal electromagnetic cascade.
+    """Return the finite-scan steady electromagnetic state (float64, blob frame).
 
-    Photon energies are strictly increasing blob-comoving grids in erg.
-    ``electron_gamma`` and ``proton_gamma`` are increasing Lorentz-factor
-    grids. Particle densities are ``dn/dgamma`` in cm^-3, lepton sources are
-    ``dN/(dV dt dgamma)`` in cm^-3 s^-1, the pi0 photon source is
-    ``dN/(dV dt dE)`` in cm^-3 s^-1 erg^-1. The optional meson synchrotron
-    sources are blob-comoving intrinsic ``E L_E`` in erg s^-1 on the
-    synchrotron and gamma-ray grids; ``None`` is exact zero. The low-grid
-    source is added before the existing electron-SSA transfer, while the
-    gamma-grid source enters gamma-gamma transfer. Photon densities are
-    ``dn/dE`` in cm^-3 erg^-1. Magnetic field, radius, continuous loss, and
-    local escape inputs use G, cm, ``b=-dgamma/dt`` in s^-1, and s^-1.
+    The two positional photon grids must now be identical full-support grids,
+    in erg. Historical different/split grids are rejected: their independent
+    photon populations cannot be converted without source information. Input
+    lepton sources are cm^-3 s^-1 dgamma^-1, pi0 source cm^-3 s^-1 erg^-1;
+    meson dictionary pion_total/muon_total contains intrinsic E L_E (erg/s).
+    n=dn/dE is cm^-3 erg^-1; B,R are G,cm. The seven source populations share
+    electron SSA plus internal/external gamma-gamma transfer at every energy.
+    Internal IC emission and cooling read the same accepted total internal n,
+    including internally produced IC/EC/pi0 photons. The historical enable_ssc
+    switch now controls this internal IC process. SSC outputs are nonadditive
+    diagnostics of the four-synchrotron-seed subset, not a second population.
+    Fixed external seeds enter EC once; photons emitted by EC may subsequently
+    scatter internally. No second SSA factor is applied to any seed density.
+    The existing ultrarelativistic upscattering kernels are retained; this is
+    not an arbitrary-energy bidirectional Compton/heating solver. Seed-photon
+    removal is neglected in the optically thin scattering regime (requiring a separate
+    scattering-opacity check), not included in the SSA/gamma-gamma photon loss ledger.
 
-    Primary, muon-decay, Bethe--Heitler, proton, pi0, meson-synchrotron,
-    external-field, caller-supplied additional loss, and escape inputs remain fixed. External
-    inverse-Compton cooling is evaluated once from the same external photon
-    grid and density used by the radiation chain. Each iteration adds it to
-    ``additional_fixed_inverse_compton_loss_rate_dgamma_s`` and the current
-    SSC cooling, transports electrons and positrons separately, evaluates the
-    intrinsic radiation once, and updates both the pair source and SSC cooling
-    from the current SSA-corrected synchrotron target. Electron/positron
-    synchrotron is evaluated directly on both grids. By default,
-    ``synchrotron_primary_split_energy_erg=None`` uses the final target-grid
-    energy as before. An explicit finite positive value within the target-grid
-    coverage independently sets the boundary above which gamma-grid
-    synchrotron is a primary; the complete supplied target grid still
-    participates in SSC and gamma-gamma calculations.
-
-    This only removes the erroneous coupling between a numerical target-grid
-    upper bound and the physical primary split. If the target grid extends
-    above an explicit split, the overlapping primary/target photon population
-    remains an approximation: no symmetric high-high photon collision operator
-    is included, and regimes where those target photons matter require a
-    separate benchmark before science-ready use.
-
-    ``include_external_gamma_gamma_target=False`` preserves the prior external
-    gamma-gamma behavior. When true, the prescribed external EC field is also
-    treated as an isotropic, homogeneous, co-spatial blob-comoving target.
-    Internal and external opacities are summed before one transfer, after which
-    charge-separated pair sources are evaluated per target and added. The
-    external field is not depleted; anisotropic and line-of-sight geometries
-    are outside this local closure.
-
-    ``enable_internal_gamma_gamma=False`` removes only the internal
-    synchrotron target from gamma-gamma absorption and pair injection. The
-    synchrotron photon field itself remains available to SSC and upstream
-    hadronic interactions, and external gamma-gamma retains its independent
-    ``include_external_gamma_gamma_target`` setting. The default is true and
-    preserves the historical production composition.
-
-    ``enable_ssc`` and ``enable_ec`` are static, non-differentiable composition
-    switches. Disabling either process sets both its emitted SED and its
-    electron cooling contribution to exact zero. SSC-off retains the internal
-    synchrotron target for gamma-gamma transfer. EC-off retains the prescribed
-    external target for external gamma-gamma transfer. Both default to true,
-    preserving the historical target-driven behavior.
-
-    ``compose_proton_synchrotron_low_energy=True`` is reserved for the outer
-    hadronic forward. It adds the existing low-grid proton-synchrotron owner
-    output to the low intrinsic/escaped field and internal photon target, while
-    the gamma grid owns only energies strictly above the split. The standalone
-    electromagnetic owner defaults to its historical fixed-proton composition.
-
-    By default, gamma-gamma daughters are evaluated directly on
-    ``electron_gamma``. A supplied finite, strictly increasing float64
-    ``pair_daughter_gamma`` with the same endpoints evaluates the differential
-    pair source on that fixed grid, then deposits its piecewise-constant
-    dual-cell contents by source/target cell overlap onto ``electron_gamma``.
-    Particle number is conserved; the discrete first-gamma-moment residual is
-    reported but is not artificially corrected. Identical pair and transport
-    grids use the exact identity path. The remap operator is built once outside
-    the fixed-point scan; initial pair sources, relaxation, and convergence
-    remain on the transport grid.
-
-    ``relaxation_omega`` satisfies ``0 < omega <= 1``. The default initial pair
-    sources and SSC cooling are exact zeros. A scalar or electron-grid-shaped
-    finite non-negative ``initial_ssc_loss_rate_dgamma_s`` only changes the
-    initial iterate. Convergence uses weighted symmetric relative L1 residuals
-    for both lepton densities, the raw pair-source and SSC-cooling fixed-point
-    defects, the internal synchrotron target, and escaped gamma SED. Relaxed
-    pair and SSC update residuals are diagnostics only. The legacy
-    ``final_*_pair_injection_residual`` outputs remain aliases of the raw
-    fixed-point residuals. In the pair-energy ledger,
-    ``pair_energy_residual`` remains a compatibility alias of
-    ``pair_energy_max_relative_residual = |1-f|/max(1,f)``. The separately
-    named deficit and symmetric residuals are ``|1-f|`` and
-    ``2|1-f|/(1+f)``, where ``f`` is the high-resolution pair-energy capture
-    fraction. The JAX-native fixed-length scan freezes state after convergence.
-    Gradients propagate through the finite ``maximum_iterations`` expansion;
-    no implicit fixed-point differentiation is used.
-
-    Fixed ``gamma_gamma_pair_response`` and
-    ``external_gamma_gamma_pair_response`` arrays may be prepared before JAX
-    tracing. When omitted, the existing eager fixed-grid cache is used.
+    Internal gamma-gamma uses the same accepted n on BOTH sides; prescribed
+    external targets are a separate nondepleting reservoir, without a half.
+    Photon and particle raw map defects control freezing. At an exhausted
+    iteration limit converged=False and iteration_limit_reached=True; callers
+    must reject that result. This is finite-program AD, not implicit steady AD.
+    No relaxed step size is substituted for the true photon map residual.
     """
-    if not isinstance(maximum_iterations, Integral) or isinstance(
-        maximum_iterations, bool
+    if (
+        not isinstance(maximum_iterations, Integral)
+        or isinstance(maximum_iterations, bool)
+        or maximum_iterations < 1
     ):
         raise ValueError("maximum_iterations must be a positive integer")
-    maximum_iterations = int(maximum_iterations)
-    if maximum_iterations <= 0:
-        raise ValueError("maximum_iterations must be a positive integer")
-    if not isinstance(include_external_gamma_gamma_target, (bool, np.bool_)):
-        raise ValueError("include_external_gamma_gamma_target must be boolean")
-    include_external_gamma_gamma_target = bool(include_external_gamma_gamma_target)
-    for name, enabled in (
+    for name, value in (
+        ("include_external_gamma_gamma_target", include_external_gamma_gamma_target),
         ("enable_internal_gamma_gamma", enable_internal_gamma_gamma),
         ("enable_ssc", enable_ssc),
         ("enable_ec", enable_ec),
-        (
-            "compose_proton_synchrotron_low_energy",
-            compose_proton_synchrotron_low_energy,
-        ),
     ):
-        if not isinstance(enabled, (bool, np.bool_)):
+        if not isinstance(value, (bool, np.bool_)):
             raise ValueError(f"{name} must be boolean")
-    enable_internal_gamma_gamma = bool(enable_internal_gamma_gamma)
-    enable_ssc = bool(enable_ssc)
-    enable_ec = bool(enable_ec)
-    compose_proton_synchrotron_low_energy = bool(compose_proton_synchrotron_low_energy)
-    if not enable_ssc and initial_ssc_loss_rate_dgamma_s is not None:
+    if initial_ssc_loss_rate_dgamma_s is not None:
         raise ValueError(
-            "initial_ssc_loss_rate_dgamma_s must be None when enable_ssc=False"
+            "initial_ssc_loss_rate_dgamma_s is retired: internal IC cooling is derived from the common photon state"
         )
-    if synchrotron_primary_split_energy_erg is None:
-        synchrotron_primary_split_energy = None
-        ssc_low_energy_stop = np.shape(synchrotron_photon_energy_erg)[0]
-    else:
-        synchrotron_primary_split_energy = _positive_iteration_scalar(
-            "synchrotron_primary_split_energy_erg",
-            synchrotron_primary_split_energy_erg,
+    if not _contains_tracer(
+        (synchrotron_photon_energy_erg, gamma_ray_energy_erg)
+    ) and not np.array_equal(synchrotron_photon_energy_erg, gamma_ray_energy_erg):
+        raise ValueError(
+            "EM requires identical full photon grids; split source inputs must be rebuilt before calling"
         )
-        if not _contains_tracer(
-            (
-                synchrotron_primary_split_energy_erg,
-                synchrotron_photon_energy_erg,
-            )
-        ):
-            target_energy = np.asarray(synchrotron_photon_energy_erg)
-            split_value = float(np.asarray(synchrotron_primary_split_energy_erg))
-            if split_value < target_energy[0] or split_value > target_energy[-1]:
-                raise ValueError(
-                    "synchrotron_primary_split_energy_erg must lie within "
-                    "the synchrotron target-grid coverage"
-                )
-            ssc_low_energy_stop = int(
-                np.searchsorted(target_energy, split_value, side="right")
-            )
-        else:
-            ssc_low_energy_stop = np.shape(synchrotron_photon_energy_erg)[0]
-    omega = _positive_iteration_scalar(
-        "relaxation_omega",
-        relaxation_omega,
-        upper=1.0,
+    if np.shape(synchrotron_photon_energy_erg) != np.shape(gamma_ray_energy_erg):
+        raise ValueError("EM requires identical full photon-grid shapes")
+    energy = jnp.asarray(gamma_ray_energy_erg, dtype=jnp.float64)
+    gamma = jnp.asarray(electron_gamma, dtype=jnp.float64)
+    daughter = (
+        gamma
+        if pair_daughter_gamma is None
+        else _validated_pair_daughter_gamma(pair_daughter_gamma, electron_gamma)
     )
-    tolerance = _positive_iteration_scalar(
-        "relative_tolerance",
-        relative_tolerance,
-    )
-    electron_gamma = jnp.asarray(electron_gamma, dtype=jnp.float64)
-    if pair_daughter_gamma is None:
-        daughter_gamma = electron_gamma
-        pair_source_remap_operator = None
-    else:
-        daughter_gamma = _validated_pair_daughter_gamma(
-            pair_daughter_gamma,
-            electron_gamma,
-        )
-        pair_source_remap_operator = (
-            None
-            if _pair_grids_are_identical(daughter_gamma, electron_gamma)
-            else _pair_source_remap_operator_jax(
-                daughter_gamma,
-                electron_gamma,
-            )
-        )
-    initial_electron = (
-        jnp.zeros_like(electron_gamma)
-        if initial_gamma_gamma_electron_injection_dgamma_cm3_s is None
-        else jnp.asarray(
-            initial_gamma_gamma_electron_injection_dgamma_cm3_s,
-            dtype=jnp.float64,
-        )
-    )
-    initial_positron = (
-        jnp.zeros_like(electron_gamma)
-        if initial_gamma_gamma_positron_injection_dgamma_cm3_s is None
-        else jnp.asarray(
-            initial_gamma_gamma_positron_injection_dgamma_cm3_s,
-            dtype=jnp.float64,
-        )
-    )
-    initial_ssc = (
-        jnp.zeros_like(electron_gamma)
-        if initial_ssc_loss_rate_dgamma_s is None
-        else jnp.broadcast_to(
-            jnp.asarray(initial_ssc_loss_rate_dgamma_s, dtype=jnp.float64),
-            electron_gamma.shape,
-        )
-    )
-    if not _contains_tracer(initial_ssc):
-        initial_ssc_array = np.asarray(initial_ssc)
-        if not np.all(np.isfinite(initial_ssc_array)) or np.any(
-            initial_ssc_array < 0.0
-        ):
-            raise ValueError(
-                "initial_ssc_loss_rate_dgamma_s must be finite and non-negative"
-            )
-    additional_fixed_inverse_compton_loss = jnp.broadcast_to(
-        jnp.asarray(
-            additional_fixed_inverse_compton_loss_rate_dgamma_s,
-            dtype=jnp.float64,
-        ),
-        electron_gamma.shape,
-    )
-    if not _contains_tracer(additional_fixed_inverse_compton_loss):
-        additional_fixed_array = np.asarray(additional_fixed_inverse_compton_loss)
-        if not np.all(np.isfinite(additional_fixed_array)) or np.any(
-            additional_fixed_array < 0.0
-        ):
-            raise ValueError(
-                "additional_fixed_inverse_compton_loss_rate_dgamma_s must be "
-                "finite and non-negative"
-            )
-
-    if meson_synchrotron_low_energy_intrinsic_sed_erg_s is None:
-        meson_synchrotron_low_energy_sed = jnp.zeros_like(
-            jnp.asarray(synchrotron_photon_energy_erg, dtype=jnp.float64)
-        )
-    elif _contains_tracer(
-        (
-            meson_synchrotron_low_energy_intrinsic_sed_erg_s,
-            synchrotron_photon_energy_erg,
-        )
-    ):
-        meson_synchrotron_low_energy_sed = jnp.asarray(
-            meson_synchrotron_low_energy_intrinsic_sed_erg_s,
-            dtype=jnp.float64,
-        )
-    else:
-        meson_synchrotron_low_energy_sed = jnp.asarray(
-            _real_1d(
-                "meson_synchrotron_low_energy_intrinsic_sed_erg_s",
-                meson_synchrotron_low_energy_intrinsic_sed_erg_s,
-                minimum_size=1,
-                positive=False,
-                shape=np.shape(synchrotron_photon_energy_erg),
-            ),
-            dtype=jnp.float64,
-        )
-
-    if meson_synchrotron_intrinsic_sed_erg_s is None:
-        meson_synchrotron_sed = jnp.zeros_like(
-            jnp.asarray(gamma_ray_energy_erg, dtype=jnp.float64)
-        )
-    elif _contains_tracer(
-        (meson_synchrotron_intrinsic_sed_erg_s, gamma_ray_energy_erg)
-    ):
-        meson_synchrotron_sed = jnp.asarray(
-            meson_synchrotron_intrinsic_sed_erg_s,
-            dtype=jnp.float64,
-        )
-    else:
-        meson_synchrotron_sed = jnp.asarray(
-            _real_1d(
-                "meson_synchrotron_intrinsic_sed_erg_s",
-                meson_synchrotron_intrinsic_sed_erg_s,
-                minimum_size=1,
-                positive=False,
-                shape=np.shape(gamma_ray_energy_erg),
-            ),
-            dtype=jnp.float64,
-        )
-
-    external_compton_density = (
-        dn_external_seed_photon_denergy_cm3_erg
-        if enable_ec
-        else jnp.zeros_like(
-            jnp.asarray(
-                dn_external_seed_photon_denergy_cm3_erg,
-                dtype=jnp.float64,
-            )
-        )
-    )
-    external_inverse_compton_loss = electron_inverse_compton_loss_rate_dgamma_s_jax(
-        electron_gamma,
-        external_seed_photon_energy_erg,
-        external_compton_density,
+    remap = (
+        None
+        if _pair_grids_are_identical(daughter, gamma)
+        else _pair_source_remap_operator_jax(daughter, gamma)
     )
     if gamma_gamma_pair_response is None:
-        gamma_gamma_pair_response = prepare_gamma_gamma_pair_response_jax(
-            daughter_gamma,
-            gamma_ray_energy_erg,
-            synchrotron_photon_energy_erg,
+        response = prepare_gamma_gamma_total_field_response_jax(
+            gamma_ray_energy_erg, daughter
         )
+    elif not isinstance(gamma_gamma_pair_response, dict):
+        raise ValueError(
+            "gamma_gamma_pair_response must be a prepared total-field response, not the retired labelled tensor"
+        )
+    else:
+        response = gamma_gamma_pair_response
+    if response["pair_response"].shape != (daughter.size, energy.size, energy.size):
+        raise ValueError(
+            "total-field response shape does not match photon/daughter grids"
+        )
+    if not _contains_tracer((energy, daughter, response)) and (
+        not np.array_equal(energy, response["photon_energy_erg"])
+        or not np.array_equal(daughter, response["lepton_gamma"])
+    ):
+        raise ValueError("total-field response belongs to different grids")
+    omega = _positive_iteration_scalar("relaxation_omega", relaxation_omega, upper=1.0)
+    tolerance = _positive_iteration_scalar("relative_tolerance", relative_tolerance)
+    volume = 4.0 * jnp.pi * radius_cm**3 / 3.0
+    weights = response["photon_integration_weights_erg"]
+    ext_energy = jnp.asarray(external_seed_photon_energy_erg, dtype=jnp.float64)
+    ext_density = jnp.asarray(
+        dn_external_seed_photon_denergy_cm3_erg, dtype=jnp.float64
+    )
+    ec_density = ext_density if enable_ec else jnp.zeros_like(ext_density)
+    ext_cooling = electron_inverse_compton_loss_rate_dgamma_s_jax(
+        gamma, ext_energy, ec_density
+    )
+    fixed_cooling = jnp.broadcast_to(
+        jnp.asarray(
+            additional_fixed_inverse_compton_loss_rate_dgamma_s, dtype=jnp.float64
+        ),
+        gamma.shape,
+    )
+    if not _contains_tracer(fixed_cooling):
+        fixed_values = np.asarray(fixed_cooling)
+        if not np.all(np.isfinite(fixed_values)) or np.any(fixed_values < 0):
+            raise ValueError(
+                "additional_fixed_inverse_compton_loss_rate_dgamma_s must be finite and non-negative"
+            )
+    ext_weights = ext_energy * _trapezoid_weights(jnp.log(ext_energy))
+    ext_target = (
+        ext_density
+        if include_external_gamma_gamma_target
+        else jnp.zeros_like(ext_density)
+    )
+    ext_kernel = _angle_averaged_cross_section_jax(
+        energy[:, None] * ext_energy[None, :] / _MEC2_CGS**2
+    )
+    ext_alpha = ext_kernel @ (ext_target * ext_weights)
     if include_external_gamma_gamma_target:
         if external_gamma_gamma_pair_response is None:
+            external_gamma_gamma_pair_response = response.get("external_pair_response")
+        if external_gamma_gamma_pair_response is None:
             external_gamma_gamma_pair_response = prepare_gamma_gamma_pair_response_jax(
-                daughter_gamma,
-                gamma_ray_energy_erg,
-                external_seed_photon_energy_erg,
+                daughter, gamma_ray_energy_erg, external_seed_photon_energy_erg
             )
-    else:
-        external_gamma_gamma_pair_response = None
-
-    fixed_arguments = (
-        electron_gamma,
-        daughter_gamma,
-        pair_source_remap_operator,
-        synchrotron_photon_energy_erg,
-        gamma_ray_energy_erg,
-        synchrotron_primary_split_energy,
-        primary_electron_injection_dgamma_cm3_s,
-        primary_positron_injection_dgamma_cm3_s,
-        muon_decay_electron_injection_dgamma_cm3_s,
-        muon_decay_positron_injection_dgamma_cm3_s,
-        bethe_heitler_electron_injection_dgamma_cm3_s,
-        bethe_heitler_positron_injection_dgamma_cm3_s,
+        else:
+            if "external_target_photon_energy_erg" not in response:
+                raise ValueError(
+                    "Cached external pair response requires exact external_target_photon_energy_erg metadata in the prepared response"
+                )
+            if external_gamma_gamma_pair_response.shape != (
+                daughter.size,
+                energy.size,
+                ext_energy.size,
+            ):
+                raise ValueError(
+                    "External pair response shape does not match its grids"
+                )
+            if not _contains_tracer((ext_energy, response)) and not np.array_equal(
+                ext_energy, response["external_target_photon_energy_erg"]
+            ):
+                raise ValueError(
+                    "External pair response belongs to a different target grid"
+                )
+    # All-angle daughter support for the distinct internal/external populations.
+    x, y = energy[:, None] / _MEC2_CGS, ext_energy[None, :] / _MEC2_CGS
+    product = x * y
+    total = x + y
+    invariant = jnp.minimum(jnp.maximum(total / 2, 1.0), jnp.maximum(product, 1.0))
+    width = jnp.sqrt(1 - 1 / invariant) * jnp.sqrt(
+        jnp.maximum((x - y) ** 2 + 4 * (product - invariant), 0.0)
     )
-    trailing_arguments = (
+    lower = jnp.maximum(
+        (4 * invariant + total**2 / invariant - 4) / (2 * (total + width)), 1.0
+    )
+    upper = (total + width) / 2
+    padding = 64 * jnp.finfo(jnp.float64).eps
+    ext_lower_mask = (product > 1) & (
+        lower <= daughter[0] + padding * jnp.maximum(lower, daughter[0])
+    )
+    ext_upper_mask = (product > 1) & (
+        upper >= daughter[-1] - padding * jnp.maximum(total, daughter[-1])
+    )
+    proton_sed = synchrotron_sed_jax(
+        energy,
         proton_gamma,
         proton_density_dgamma_cm3,
-        pi0_decay_photon_injection_cm3_s_erg,
-        external_seed_photon_energy_erg,
-        dn_external_seed_photon_denergy_cm3_erg,
-        external_compton_density,
-        include_external_gamma_gamma_target,
-        enable_internal_gamma_gamma,
-        enable_ssc,
-        compose_proton_synchrotron_low_energy,
-        magnetic_field_G,
-        radius_cm,
-        adiabatic_rate_s_inv,
-        escape_rate_s_inv,
-        external_inverse_compton_loss,
-        additional_fixed_inverse_compton_loss,
-        additional_continuous_loss_rate_dgamma_s,
-        omega,
-        meson_synchrotron_low_energy_sed,
-        meson_synchrotron_sed,
+        magnetic_field_G=magnetic_field_G,
+        radius_cm=radius_cm,
+        particle_mass_g=_M_P_CGS,
+        charge_esu=_E_ESU,
+    )
+    meson = (
+        {}
+        if meson_synchrotron_intrinsic_seds_erg_s is None
+        else meson_synchrotron_intrinsic_seds_erg_s
+    )
+    pion_sed = jnp.asarray(meson.get("pion_total", jnp.zeros_like(energy)))
+    muon_sed = jnp.asarray(meson.get("muon_total", jnp.zeros_like(energy)))
+    pi0_sed = jnp.asarray(pi0_decay_photon_injection_cm3_s_erg) * volume * energy**2
+    zero_pair = jnp.zeros_like(gamma)
+    initial_e = (
+        zero_pair
+        if initial_gamma_gamma_electron_injection_dgamma_cm3_s is None
+        else jnp.asarray(initial_gamma_gamma_electron_injection_dgamma_cm3_s)
+    )
+    initial_p = (
+        zero_pair
+        if initial_gamma_gamma_positron_injection_dgamma_cm3_s is None
+        else jnp.asarray(initial_gamma_gamma_positron_injection_dgamma_cm3_s)
     )
 
-    def evaluate(electron_pair, positron_pair, ssc_loss):
-        return _iteration_map(
-            *fixed_arguments,
-            electron_pair,
-            positron_pair,
-            ssc_loss,
-            *trailing_arguments,
-            gamma_gamma_pair_response=gamma_gamma_pair_response,
-            external_gamma_gamma_pair_response=(external_gamma_gamma_pair_response),
+    def photon_residual(new, old, energy_weight):
+        measure = weights * energy_weight
+        numerator = jnp.sum(jnp.abs(new - old) * measure, axis=-1)
+        denominator = jnp.maximum(
+            jnp.sum(jnp.abs(new) * measure, axis=-1),
+            jnp.sum(jnp.abs(old) * measure, axis=-1),
+        )
+        return jnp.max(
+            jnp.where(
+                denominator > 0.0,
+                numerator / jnp.where(denominator > 0.0, denominator, 1.0),
+                0.0,
+            )
         )
 
-    initial_state = evaluate(initial_electron, initial_positron, initial_ssc)
-    zero_state = jax.tree_util.tree_map(jnp.zeros_like, initial_state)
-    initial_residuals = _monitored_residuals(
-        initial_state,
-        zero_state,
-        electron_gamma,
-        synchrotron_photon_energy_erg,
-        gamma_ray_energy_erg,
+    def evaluate(pair_e, pair_p, components):
+        density = jnp.sum(components, axis=0)
+        internal_ic_cooling = (
+            electron_inverse_compton_loss_rate_dgamma_s_jax(gamma, energy, density)
+            if enable_ssc
+            else zero_pair
+        )
+        cooling = ext_cooling + fixed_cooling + internal_ic_cooling
+        transport = total_lepton_transport_chain_jax(
+            gamma,
+            primary_electron_injection_dgamma_cm3_s,
+            primary_positron_injection_dgamma_cm3_s,
+            muon_decay_electron_injection_dgamma_cm3_s,
+            muon_decay_positron_injection_dgamma_cm3_s,
+            bethe_heitler_electron_injection_dgamma_cm3_s,
+            bethe_heitler_positron_injection_dgamma_cm3_s,
+            pair_e,
+            pair_p,
+            magnetic_field_G,
+            adiabatic_rate_s_inv,
+            escape_rate_s_inv,
+            inverse_compton_loss_rate_dgamma_s=cooling,
+            additional_continuous_loss_rate_dgamma_s=additional_continuous_loss_rate_dgamma_s,
+        )
+        leptons = (
+            transport["electron_density_dgamma_cm3"]
+            + transport["positron_density_dgamma_cm3"]
+        )
+        electron_sed = electron_synchrotron_sed_jax(
+            energy,
+            gamma,
+            leptons,
+            magnetic_field_G=magnetic_field_G,
+            radius_cm=radius_cm,
+        )
+        ssa = synchrotron_absorption_coefficient_jax(
+            energy,
+            gamma,
+            leptons,
+            magnetic_field_G=magnetic_field_G,
+            particle_mass_g=_M_E_CGS,
+            charge_esu=_E_ESU,
+        )
+        internal_ic = (
+            inverse_compton_sed_jax(
+                energy, gamma, leptons, energy, density, radius_cm=radius_cm
+            )
+            if enable_ssc
+            else jnp.zeros_like(energy)
+        )
+        ec = (
+            inverse_compton_sed_jax(
+                energy, gamma, leptons, ext_energy, ec_density, radius_cm=radius_cm
+            )
+            if enable_ec
+            else jnp.zeros_like(energy)
+        )
+        sources = jnp.stack(
+            (electron_sed, proton_sed, pion_sed, muon_sed, internal_ic, ec, pi0_sed)
+        )
+        collisions = gamma_gamma_total_field_jax(
+            density if enable_internal_gamma_gamma else jnp.zeros_like(density),
+            response,
+        )
+        ext_q = (
+            _contract_pair_response(
+                external_gamma_gamma_pair_response, density, ext_target
+            )[0]
+            if include_external_gamma_gamma_target
+            else jnp.zeros_like(daughter)
+        )
+        high_q = collisions["electron_pair_injection_dgamma_cm3_s"] + ext_q
+        raw_pair = (
+            high_q
+            if remap is None
+            else _conservative_pair_source_remap_jax(high_q, remap)
+        )
+        gg_alpha = collisions["absorption_coefficient_cm1"] + ext_alpha
+        total_alpha = ssa + gg_alpha
+        mapped = _internal_photon_density_kernel(
+            energy, sources, total_alpha, radius_cm
+        )
+        transfer = _sphere_attenuation_factor_jax(2.0 * radius_cm * total_alpha)
+        escaped = sources * transfer
+        ext_loss = _C_CGS * ext_alpha * density
+        ext_events = jnp.sum(ext_loss * weights)
+        ext_reservoir_power = _C_CGS * jnp.sum(
+            density * weights * (ext_kernel @ (ext_target * ext_weights * ext_energy))
+        )
+        number_residual = photon_residual(mapped, components, 1.0)
+        energy_residual = photon_residual(mapped, components, energy)
+        pair_residual = jnp.maximum(
+            _symmetric_relative_l1(raw_pair, pair_e, gamma),
+            _symmetric_relative_l1(raw_pair, pair_p, gamma),
+        )
+        finite = (
+            jnp.all(jnp.isfinite(mapped))
+            & jnp.all(mapped >= 0)
+            & jnp.all(jnp.isfinite(raw_pair))
+            & jnp.all(jnp.isfinite(leptons))
+            # A positive gamma-gamma opacity must not hide unsupported maser SSA.
+            & jnp.all(jnp.isfinite(ssa))
+            & jnp.all(ssa >= 0)
+            & jnp.all(total_alpha >= 0)
+        )
+        return {
+            "transport": transport,
+            "components": components,
+            "mapped_components": mapped,
+            "sources": sources,
+            "escaped_components": escaped,
+            "total_density": density,
+            "ssa": ssa,
+            "gg_alpha": gg_alpha,
+            "total_alpha": total_alpha,
+            "transfer": transfer,
+            "collisions": collisions,
+            "external_q": ext_q,
+            "external_loss": ext_loss,
+            "external_events": ext_events,
+            "external_reservoir_power": ext_reservoir_power,
+            "pair_e": pair_e,
+            "pair_p": pair_p,
+            "raw_pair": raw_pair,
+            "high_q": high_q,
+            "internal_ic_cooling": internal_ic_cooling,
+            "total_cooling": cooling,
+            "photon_number_residual": number_residual,
+            "photon_energy_residual": energy_residual,
+            "pair_residual": pair_residual,
+            "finite": finite,
+        }
+
+    def residuals(state, previous):
+        electron = _symmetric_relative_l1(
+            state["transport"]["electron_density_dgamma_cm3"],
+            previous["transport"]["electron_density_dgamma_cm3"],
+            gamma,
+        )
+        positron = _symmetric_relative_l1(
+            state["transport"]["positron_density_dgamma_cm3"],
+            previous["transport"]["positron_density_dgamma_cm3"],
+            gamma,
+        )
+        cooling = _symmetric_relative_l1(
+            state["internal_ic_cooling"], previous["internal_ic_cooling"], gamma
+        )
+        maximum = jnp.max(
+            jnp.stack(
+                (
+                    electron,
+                    positron,
+                    cooling,
+                    state["pair_residual"],
+                    state["photon_number_residual"],
+                    state["photon_energy_residual"],
+                )
+            )
+        )
+        return {
+            "cascade": jnp.where(state["finite"], maximum, jnp.inf),
+            "electron_density": electron,
+            "positron_density": positron,
+            "pair_fixed_point": state["pair_residual"],
+            "photon_map_number": state["photon_number_residual"],
+            "photon_map_energy": state["photon_energy_residual"],
+            "internal_ic_cooling": cooling,
+        }
+
+    first = evaluate(
+        initial_e,
+        initial_p,
+        jnp.zeros((len(_PHOTON_COMPONENTS), energy.size), dtype=jnp.float64),
     )
-    initially_converged = initial_residuals["cascade"] < tolerance
-    next_electron = jnp.where(
-        initially_converged,
-        initial_electron,
-        initial_state["relaxed_next_electron_pair_injection_dgamma_cm3_s"],
-    )
-    next_positron = jnp.where(
-        initially_converged,
-        initial_positron,
-        initial_state["relaxed_next_positron_pair_injection_dgamma_cm3_s"],
-    )
-    next_ssc = jnp.where(
-        initially_converged,
-        initial_ssc,
-        initial_state["relaxed_next_ssc_inverse_compton_loss_rate_dgamma_s"],
-    )
-    initial_carry = (
-        next_electron,
-        next_positron,
-        next_ssc,
-        initial_state,
-        initial_residuals,
-        initially_converged,
+    first_residual = residuals(first, jax.tree_util.tree_map(jnp.zeros_like, first))
+    carry = (
+        first,
+        first_residual,
+        first_residual["cascade"] < tolerance,
         jnp.asarray(1, dtype=jnp.int32),
     )
 
-    def scan_step(carry, _):
-        def frozen(previous):
-            return previous, previous[4]
-
+    def step(carry, _):
         def active(previous):
-            electron_pair, positron_pair, ssc_loss, previous_state, _, _, count = (
-                previous
+            state, _, _, count = previous
+            new = evaluate(
+                (1.0 - omega) * state["pair_e"] + omega * state["raw_pair"],
+                (1.0 - omega) * state["pair_p"] + omega * state["raw_pair"],
+                (1.0 - omega) * state["components"]
+                + omega * state["mapped_components"],
             )
-            state = evaluate(electron_pair, positron_pair, ssc_loss)
-            residuals = _monitored_residuals(
-                state,
-                previous_state,
-                electron_gamma,
-                synchrotron_photon_energy_erg,
-                gamma_ray_energy_erg,
-            )
-            converged = residuals["cascade"] < tolerance
-            following_electron = jnp.where(
-                converged,
-                electron_pair,
-                state["relaxed_next_electron_pair_injection_dgamma_cm3_s"],
-            )
-            following_positron = jnp.where(
-                converged,
-                positron_pair,
-                state["relaxed_next_positron_pair_injection_dgamma_cm3_s"],
-            )
-            following_ssc = jnp.where(
-                converged,
-                ssc_loss,
-                state["relaxed_next_ssc_inverse_compton_loss_rate_dgamma_s"],
-            )
-            updated = (
-                following_electron,
-                following_positron,
-                following_ssc,
-                state,
-                residuals,
-                converged,
-                count + jnp.asarray(1, dtype=jnp.int32),
-            )
-            return updated, residuals
+            defect = residuals(new, state)
+            return (new, defect, defect["cascade"] < tolerance, count + 1)
 
-        return jax.lax.cond(carry[5], frozen, active, carry)
+        following = jax.lax.cond(carry[2], lambda x: x, active, carry)
+        return following, following[1]
 
-    final_carry, residual_tail = jax.lax.scan(
-        scan_step,
-        initial_carry,
-        xs=None,
-        length=maximum_iterations - 1,
+    (state, defects, converged, count), history_tail = jax.lax.scan(
+        step, carry, None, length=int(maximum_iterations) - 1
     )
-    _, _, _, final_state, final_residuals, converged, iteration_count = final_carry
-    residual_history = {
-        name: jnp.concatenate((initial_residuals[name][None], values))
-        for name, values in residual_tail.items()
+    history = {
+        k: jnp.concatenate((first_residual[k][None], history_tail[k])) for k in defects
     }
-    transport = final_state["transport"]
-    radiation = final_state["radiation"]
-    pair_source = final_state["pair_source"]
-    ssc_low_energy_owned_sed = (
+    transport = state["transport"]
+    # Synchrotron-seed diagnostics only: never add these to internal_ic again.
+    synchrotron_seed = jnp.sum(state["components"][:4], axis=0)
+    final_leptons = (
+        transport["electron_density_dgamma_cm3"]
+        + transport["positron_density_dgamma_cm3"]
+    )
+    ssc_diagnostic = (
         inverse_compton_sed_jax(
-            jnp.asarray(synchrotron_photon_energy_erg)[:ssc_low_energy_stop],
-            electron_gamma,
-            radiation["total_lepton_density_dgamma_cm3"],
-            synchrotron_photon_energy_erg,
-            radiation["internal_synchrotron_photon_density_cm3_erg"],
-            radius_cm=radius_cm,
+            energy, gamma, final_leptons, energy, synchrotron_seed, radius_cm=radius_cm
         )
         if enable_ssc
-        else jnp.zeros((ssc_low_energy_stop,), dtype=jnp.float64)
+        else jnp.zeros_like(energy)
     )
-    ssc_low_energy_intrinsic_sed = jnp.zeros_like(
-        synchrotron_photon_energy_erg
-    ).at[:ssc_low_energy_stop].set(
-        ssc_low_energy_owned_sed
+    ssc_cooling_diagnostic = (
+        electron_inverse_compton_loss_rate_dgamma_s_jax(gamma, energy, synchrotron_seed)
+        if enable_ssc
+        else zero_pair
     )
-    total_low_energy_photon_intrinsic_sed = (
-        radiation["total_low_energy_synchrotron_intrinsic_sed_erg_s"]
-        + ssc_low_energy_intrinsic_sed
+    collision = state["collisions"]
+    sources = state["sources"]
+    escaped = state["escaped_components"]
+    total_source = jnp.sum(sources, axis=0)
+    total_escape = jnp.sum(escaped, axis=0)
+    photon_loss = collision["photon_loss_rate_cm3_s_erg"] + state["external_loss"]
+    qnumber, qmoment = _pair_source_moments(state["high_q"], daughter)
+    mapped_number, mapped_moment = _pair_source_moments(state["raw_pair"], gamma)
+    events = collision["event_rate_cm3_s"] + state["external_events"]
+    external_internal_power = jnp.sum(state["external_loss"] * weights * energy)
+    incident_power = (
+        collision["photon_loss_power_erg_cm3_s"]
+        + external_internal_power
+        + state["external_reservoir_power"]
     )
-    radiation = {
-        **radiation,
-        "ssc_low_energy_intrinsic_sed_erg_s": ssc_low_energy_intrinsic_sed,
-        "total_low_energy_photon_intrinsic_sed_erg_s": (
-            total_low_energy_photon_intrinsic_sed
+    pair_power = 2.0 * _MEC2_CGS * qmoment
+    transfer_balance = (
+        total_source
+        - total_escape
+        - volume
+        * energy**2
+        * _C_CGS
+        * state["total_alpha"]
+        * jnp.sum(state["mapped_components"], axis=0)
+    )
+    ledger = {
+        "photon_transfer_residual": _safe_ratio(
+            jnp.sum(jnp.abs(transfer_balance)), jnp.sum(jnp.abs(total_source))
         ),
-        "total_low_energy_photon_escaped_sed_erg_s": _transfer_from_quantities(
-            radiation["electron_synchrotron_absorption_coefficient_cm1"],
-            total_low_energy_photon_intrinsic_sed,
-            radius_cm,
+        "photon_map_number_residual": defects["photon_map_number"],
+        "photon_map_energy_residual": defects["photon_map_energy"],
+        "internal_photon_absorption_residual": _symmetric_relative_l1(
+            photon_loss, _C_CGS * state["gg_alpha"] * state["total_density"], energy
         ),
-        "total_low_energy_photon_primary_intrinsic_sed_erg_s": (
-            radiation["total_low_energy_synchrotron_primary_intrinsic_sed_erg_s"]
-            + jnp.where(
-                synchrotron_photon_energy_erg
-                <= radiation["synchrotron_split_energy_erg"],
-                ssc_low_energy_intrinsic_sed,
-                0.0,
-            )
+        "pair_number_relative_residual": _safe_ratio(qnumber - events, events),
+        "pair_energy_relative_residual": _safe_ratio(
+            pair_power - incident_power, incident_power
         ),
-        "internal_low_energy_photon_density_cm3_erg": (
-            synchrotron_sed_to_internal_photon_density_jax(
-                synchrotron_photon_energy_erg,
-                total_low_energy_photon_intrinsic_sed,
-                radiation["electron_synchrotron_absorption_coefficient_cm1"],
-                radius_cm=radius_cm,
-            )
+        "internal_event_rate_cm3_s": collision["event_rate_cm3_s"],
+        "external_event_rate_cm3_s": state["external_events"],
+        "photon_loss_power_erg_cm3_s": collision["photon_loss_power_erg_cm3_s"]
+        + external_internal_power,
+        "external_reservoir_loss_power_erg_cm3_s": state["external_reservoir_power"],
+        "pair_injected_energy_rate_erg_cm3_s": pair_power,
+        "electron_pair_remap_number_residual": _symmetric_scalar_residual(
+            mapped_number, qnumber
+        ),
+        "positron_pair_remap_number_residual": _symmetric_scalar_residual(
+            mapped_number, qnumber
+        ),
+        "electron_pair_remap_energy_residual": _symmetric_scalar_residual(
+            mapped_moment, qmoment
+        ),
+        "positron_pair_remap_energy_residual": _symmetric_scalar_residual(
+            mapped_moment, qmoment
         ),
     }
-    ledger = _ledger_diagnostics(
-        final_state,
-        electron_gamma,
-        daughter_gamma,
-        synchrotron_photon_energy_erg,
-        gamma_ray_energy_erg,
-        external_seed_photon_energy_erg,
-        dn_external_seed_photon_denergy_cm3_erg,
-        enable_internal_gamma_gamma,
-        include_external_gamma_gamma_target,
-        compose_proton_synchrotron_low_energy,
+    ext_cells = (
+        _C_CGS
+        * ext_kernel
+        * (state["total_density"] * weights)[:, None]
+        * (ext_target * ext_weights)[None, :]
     )
-    intrinsic_bolometric_luminosity = jnp.trapezoid(
-        radiation["total_low_energy_photon_primary_intrinsic_sed_erg_s"],
-        x=jnp.log(synchrotron_photon_energy_erg),
-    ) + jnp.trapezoid(
-        radiation["total_gamma_intrinsic_sed_erg_s"],
-        x=jnp.log(gamma_ray_energy_erg),
+    ext_outside_n = jnp.sum(ext_cells * (ext_lower_mask | ext_upper_mask))
+    ext_incident_energy = energy[:, None] + ext_energy[None, :]
+    ext_outside_power = jnp.sum(
+        ext_cells
+        * jnp.minimum(
+            ext_lower_mask
+            * jnp.minimum(2 * _MEC2_CGS * daughter[0], ext_incident_energy)
+            + ext_upper_mask * ext_incident_energy,
+            ext_incident_energy,
+        )
     )
-    return {
+    ext_pair_number, ext_pair_moment = _pair_source_moments(
+        state["external_q"], daughter
+    )
+    external_reservoir_loss = (
+        _C_CGS * ext_target * (ext_kernel.T @ (state["total_density"] * weights))
+    )
+    external_budget = {
+        "event_rate_cm3_s": state["external_events"],
+        "reservoir_photon_loss_rate_cm3_s_erg": external_reservoir_loss,
+        "reservoir_photon_loss_number_rate_cm3_s": jnp.sum(
+            external_reservoir_loss * ext_weights
+        ),
+        "internal_photon_loss_power_erg_cm3_s": external_internal_power,
+        "reservoir_photon_loss_power_erg_cm3_s": state["external_reservoir_power"],
+        "pair_injection_power_erg_cm3_s": 2 * _MEC2_CGS * ext_pair_moment,
+        "outside_per_charge_number_rate_bound_cm3_s": ext_outside_n,
+        "outside_pair_power_bound_erg_cm3_s": ext_outside_power,
+        "outside_number_fraction_bound": _safe_ratio(
+            ext_outside_n, state["external_events"]
+        ),
+        "outside_energy_fraction_bound": _safe_ratio(
+            ext_outside_power,
+            external_internal_power + state["external_reservoir_power"],
+        ),
+        "pair_number_relative_residual": _safe_ratio(
+            ext_pair_number - state["external_events"], state["external_events"]
+        ),
+        "pair_energy_relative_residual": _safe_ratio(
+            2 * _MEC2_CGS * ext_pair_moment
+            - external_internal_power
+            - state["external_reservoir_power"],
+            external_internal_power + state["external_reservoir_power"],
+        ),
+    }
+    component_dict = lambda array: {
+        name: array[i] for i, name in enumerate(_PHOTON_COMPONENTS)
+    }
+    result = {
+        "photon_energy_erg": energy,
+        "internal_photon_density_cm3_erg": state["total_density"],
+        "external_photon_energy_erg": ext_energy,
+        "external_photon_density_cm3_erg": ext_density,
+        "photon_components_internal_density_cm3_erg": component_dict(
+            state["components"]
+        ),
+        "photon_components_intrinsic_sed_erg_s": component_dict(sources),
+        "photon_components_escaped_sed_erg_s": component_dict(escaped),
+        "photon_transfer_factor": state["transfer"],
+        "photon_absorption_coefficient_cm1": state["total_alpha"],
+        "intrinsic_photon_sed_erg_s": total_source,
+        "escaped_photon_sed_erg_s": total_escape,
+        "photon_loss_rate_cm3_s_erg": photon_loss,
+        "ssa_photon_loss_rate_cm3_s_erg": _C_CGS
+        * state["ssa"]
+        * state["total_density"],
+        "internal_synchrotron_photon_density_cm3_erg": synchrotron_seed,
+        "internal_ic_seed_photon_density_cm3_erg": state["total_density"],
+        "ssc_intrinsic_sed_erg_s": ssc_diagnostic,
+        "total_synchrotron_intrinsic_sed_erg_s": jnp.sum(sources[:4], axis=0),
+        "electron_synchrotron_absorption_coefficient_cm1": state["ssa"],
+        "total_lepton_density_dgamma_cm3": transport["electron_density_dgamma_cm3"]
+        + transport["positron_density_dgamma_cm3"],
         "electron_density_dgamma_cm3": transport["electron_density_dgamma_cm3"],
         "positron_density_dgamma_cm3": transport["positron_density_dgamma_cm3"],
         "electron_total_injection_dgamma_cm3_s": transport[
@@ -1456,155 +798,67 @@ def steady_state_electromagnetic_cascade_jax(
         ],
         "electron_escape_dgamma_cm3_s": transport["electron_escape_dgamma_cm3_s"],
         "positron_escape_dgamma_cm3_s": transport["positron_escape_dgamma_cm3_s"],
-        "initial_electron_pair_injection_dgamma_cm3_s": initial_electron,
-        "initial_positron_pair_injection_dgamma_cm3_s": initial_positron,
-        "initial_ssc_inverse_compton_loss_rate_dgamma_s": initial_ssc,
-        "pair_daughter_gamma": daughter_gamma,
+        "electron_pair_injection_dgamma_cm3_s": state["pair_e"],
+        "positron_pair_injection_dgamma_cm3_s": state["pair_p"],
+        "raw_next_electron_pair_injection_dgamma_cm3_s": state["raw_pair"],
+        "raw_next_positron_pair_injection_dgamma_cm3_s": state["raw_pair"],
+        "high_resolution_electron_pair_injection_dgamma_cm3_s": state["high_q"],
+        "high_resolution_positron_pair_injection_dgamma_cm3_s": state["high_q"],
+        "high_resolution_total_pair_injection_dgamma_cm3_s": 2 * state["high_q"],
+        "pair_daughter_gamma": daughter,
+        "internal_gamma_gamma_budget": collision,
+        "external_gamma_gamma_budget": external_budget,
+        "external_gamma_gamma_event_rate_cm3_s": state["external_events"],
+        "external_reservoir_loss_power_erg_cm3_s": state["external_reservoir_power"],
+        "external_target_electron_pair_injection_dgamma_cm3_s": state["external_q"],
+        "external_target_positron_pair_injection_dgamma_cm3_s": state["external_q"],
+        "internal_target_electron_pair_injection_dgamma_cm3_s": collision[
+            "electron_pair_injection_dgamma_cm3_s"
+        ],
+        "internal_target_positron_pair_injection_dgamma_cm3_s": collision[
+            "positron_pair_injection_dgamma_cm3_s"
+        ],
+        "gamma_gamma_absorption_coefficient_cm1": state["gg_alpha"],
+        "gamma_gamma_internal_target_absorption_coefficient_cm1": collision[
+            "absorption_coefficient_cm1"
+        ],
+        "gamma_gamma_external_target_absorption_coefficient_cm1": ext_alpha,
+        "gamma_gamma_total_absorption_coefficient_cm1": state["gg_alpha"],
+        "gamma_gamma_optical_depth": 2 * radius_cm * state["gg_alpha"],
+        "escaped_gamma_sed_erg_s": total_escape,
+        "total_gamma_intrinsic_sed_erg_s": total_source,
+        "intrinsic_bolometric_luminosity_erg_s": jnp.trapezoid(
+            total_source, x=jnp.log(energy)
+        ),
+        "internal_inverse_compton_loss_rate_dgamma_s": state["internal_ic_cooling"],
+        "ssc_inverse_compton_loss_rate_dgamma_s": ssc_cooling_diagnostic,
+        "external_inverse_compton_loss_rate_dgamma_s": ext_cooling,
+        "additional_fixed_inverse_compton_loss_rate_dgamma_s": fixed_cooling,
+        "total_inverse_compton_loss_rate_dgamma_s": state["total_cooling"],
         "include_external_gamma_gamma_target": jnp.asarray(
             include_external_gamma_gamma_target
         ),
         "enable_internal_gamma_gamma": jnp.asarray(enable_internal_gamma_gamma),
         "enable_ssc": jnp.asarray(enable_ssc),
+        "enable_internal_ic": jnp.asarray(enable_ssc),
         "enable_ec": jnp.asarray(enable_ec),
-        "electron_pair_injection_dgamma_cm3_s": final_state[
-            "electron_pair_injection_dgamma_cm3_s"
-        ],
-        "positron_pair_injection_dgamma_cm3_s": final_state[
-            "positron_pair_injection_dgamma_cm3_s"
-        ],
-        "raw_next_electron_pair_injection_dgamma_cm3_s": final_state[
-            "raw_next_electron_pair_injection_dgamma_cm3_s"
-        ],
-        "raw_next_positron_pair_injection_dgamma_cm3_s": final_state[
-            "raw_next_positron_pair_injection_dgamma_cm3_s"
-        ],
-        "high_resolution_electron_pair_injection_dgamma_cm3_s": final_state[
-            "raw_next_high_resolution_electron_pair_injection_dgamma_cm3_s"
-        ],
-        "high_resolution_positron_pair_injection_dgamma_cm3_s": final_state[
-            "raw_next_high_resolution_positron_pair_injection_dgamma_cm3_s"
-        ],
-        "high_resolution_total_pair_injection_dgamma_cm3_s": pair_source[
-            "total_pair_injection_dgamma_cm3_s"
-        ],
-        "raw_next_high_resolution_electron_pair_injection_dgamma_cm3_s": (
-            final_state["raw_next_high_resolution_electron_pair_injection_dgamma_cm3_s"]
-        ),
-        "raw_next_high_resolution_positron_pair_injection_dgamma_cm3_s": (
-            final_state["raw_next_high_resolution_positron_pair_injection_dgamma_cm3_s"]
-        ),
-        "mapped_raw_next_electron_pair_injection_dgamma_cm3_s": final_state[
-            "mapped_raw_next_electron_pair_injection_dgamma_cm3_s"
-        ],
-        "mapped_raw_next_positron_pair_injection_dgamma_cm3_s": final_state[
-            "mapped_raw_next_positron_pair_injection_dgamma_cm3_s"
-        ],
-        "external_inverse_compton_loss_rate_dgamma_s": final_state[
-            "external_inverse_compton_loss_rate_dgamma_s"
-        ],
-        "additional_fixed_inverse_compton_loss_rate_dgamma_s": final_state[
-            "additional_fixed_inverse_compton_loss_rate_dgamma_s"
-        ],
-        "ssc_inverse_compton_loss_rate_dgamma_s": final_state[
-            "ssc_inverse_compton_loss_rate_dgamma_s"
-        ],
-        "total_inverse_compton_loss_rate_dgamma_s": final_state[
-            "total_inverse_compton_loss_rate_dgamma_s"
-        ],
-        "raw_next_ssc_inverse_compton_loss_rate_dgamma_s": final_state[
-            "raw_next_ssc_inverse_compton_loss_rate_dgamma_s"
-        ],
-        "relaxed_next_ssc_inverse_compton_loss_rate_dgamma_s": final_state[
-            "relaxed_next_ssc_inverse_compton_loss_rate_dgamma_s"
-        ],
-        **radiation,
-        "gamma_gamma_absorption_coefficient_cm1": pair_source[
-            "absorption_coefficient_cm1"
-        ],
-        "gamma_gamma_internal_target_absorption_coefficient_cm1": pair_source[
-            "gamma_gamma_internal_target_absorption_coefficient_cm1"
-        ],
-        "gamma_gamma_external_target_absorption_coefficient_cm1": pair_source[
-            "gamma_gamma_external_target_absorption_coefficient_cm1"
-        ],
-        "gamma_gamma_total_absorption_coefficient_cm1": pair_source[
-            "gamma_gamma_total_absorption_coefficient_cm1"
-        ],
-        "internal_target_electron_pair_injection_dgamma_cm3_s": pair_source[
-            "internal_target_electron_pair_injection_dgamma_cm3_s"
-        ],
-        "internal_target_positron_pair_injection_dgamma_cm3_s": pair_source[
-            "internal_target_positron_pair_injection_dgamma_cm3_s"
-        ],
-        "external_target_electron_pair_injection_dgamma_cm3_s": pair_source[
-            "external_target_electron_pair_injection_dgamma_cm3_s"
-        ],
-        "external_target_positron_pair_injection_dgamma_cm3_s": pair_source[
-            "external_target_positron_pair_injection_dgamma_cm3_s"
-        ],
-        "gamma_gamma_optical_depth": pair_source["optical_depth"],
-        "gamma_gamma_transfer_factor": pair_source["transfer_factor"],
-        "escaped_gamma_sed_erg_s": pair_source["escaped_sed_erg_s"],
-        "removed_gamma_sed_erg_s": pair_source["removed_sed_erg_s"],
-        "internal_high_energy_gamma_photon_density_cm3_erg": pair_source[
-            "internal_gamma_photon_density_cm3_erg"
-        ],
-        "absorbed_gamma_photon_rate_cm3_s_erg": pair_source[
-            "absorbed_photon_rate_cm3_s_erg"
-        ],
-        "intrinsic_bolometric_luminosity_erg_s": (intrinsic_bolometric_luminosity),
         "converged": converged,
-        "iteration_count": iteration_count,
-        "maximum_iterations": jnp.asarray(
-            maximum_iterations,
-            dtype=jnp.int32,
-        ),
+        "iteration_limit_reached": ~converged,
+        "iteration_count": count,
+        "maximum_iterations": jnp.asarray(maximum_iterations),
         "relative_tolerance": tolerance,
         "relaxation_omega": omega,
-        "final_cascade_residual": final_residuals["cascade"],
-        "final_electron_density_residual": final_residuals["electron_density"],
-        "final_positron_density_residual": final_residuals["positron_density"],
-        "final_pair_fixed_point_residual": final_residuals["pair_fixed_point"],
-        "final_electron_pair_fixed_point_residual": final_residuals[
-            "electron_pair_fixed_point"
-        ],
-        "final_positron_pair_fixed_point_residual": final_residuals[
-            "positron_pair_fixed_point"
-        ],
-        "final_pair_update_residual": final_residuals["pair_update"],
-        "final_ssc_cooling_fixed_point_residual": final_residuals[
-            "ssc_cooling_fixed_point"
-        ],
-        "final_ssc_cooling_update_residual": final_residuals["ssc_cooling_update"],
-        "final_electron_pair_update_residual": final_residuals["electron_pair_update"],
-        "final_positron_pair_update_residual": final_residuals["positron_pair_update"],
-        "final_pair_injection_residual": final_residuals["pair_fixed_point"],
-        "final_electron_pair_injection_residual": final_residuals[
-            "electron_pair_fixed_point"
-        ],
-        "final_positron_pair_injection_residual": final_residuals[
-            "positron_pair_fixed_point"
-        ],
-        "final_internal_synchrotron_photon_density_residual": (
-            final_residuals["internal_synchrotron_photon_density"]
-        ),
-        "final_escaped_gamma_sed_residual": final_residuals["escaped_gamma_sed"],
-        "residual_history": residual_history["cascade"],
-        "residual_histories": residual_history,
-        "inverse_compton_loss_composition_residual": ledger[
-            "inverse_compton_loss_composition_residual"
-        ],
-        "electron_pair_remap_number_residual": ledger[
-            "electron_pair_remap_number_residual"
-        ],
-        "positron_pair_remap_number_residual": ledger[
-            "positron_pair_remap_number_residual"
-        ],
-        "electron_pair_remap_energy_residual": ledger[
-            "electron_pair_remap_energy_residual"
-        ],
-        "positron_pair_remap_energy_residual": ledger[
-            "positron_pair_remap_energy_residual"
-        ],
+        "final_cascade_residual": defects["cascade"],
+        "final_electron_density_residual": defects["electron_density"],
+        "final_positron_density_residual": defects["positron_density"],
+        "final_pair_fixed_point_residual": defects["pair_fixed_point"],
+        "final_photon_map_number_residual": defects["photon_map_number"],
+        "final_photon_map_energy_residual": defects["photon_map_energy"],
+        "residual_history": history["cascade"],
+        "residual_histories": history,
         "ledger_diagnostics": ledger,
     }
+    for i, name in enumerate(_PHOTON_COMPONENTS):
+        result[name + "_intrinsic_sed_erg_s"] = sources[i]
+    result.update({key: value for key, value in ledger.items() if "remap" in key})
+    return result

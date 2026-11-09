@@ -1,23 +1,27 @@
 # Official HELENA examples
 
-The v0.1.0 public example set contains only:
+The maintained v0.1.1 example set contains only:
 
 - the [CPU quickstart](../quickstart/helena_cpu_quickstart.ipynb);
 - the [GPU quickstart](../quickstart/helena_gpu_quickstart.ipynb); and
 - the [TXS 0506+056 2017 canonical example](txs0506_2017/txs0506_2017_canonical.ipynb).
 
+These source notebooks target the v0.1.1 solver and have stale outputs cleared. Historical v0.1.0 output is retained in that immutable tag.
 CPU and GPU use the same public API and scientific semantics. The TXS notebook
 is the only public real-source workflow. Legacy, deep-private, diagnostic, and
 profiling notebooks remain in the preserved developer archive.
 
-BH-enabled sections require the official validated Bethe--Heitler cache. The
-one-time workflow is `helena cache fetch` followed by the normal example. Use
-`helena cache status` to verify it, or select a complete cache copied to
-offline/HPC storage with `cache_dir=` or `HELENA_CACHE_DIR`. Normal examples
-never download or rebuild the cache. The version-specific URL and checksum
-are bound to the published
-[BH C513 v1 resource release](https://github.com/LiYangji/HELENA-resources/releases/tag/bh-c513-v1).
-Software installation and these external responses are separate requirements.
+Complete model sections require the exact v0.1.1 BH and gamma-gamma responses.
+Run `helena cache fetch` once and `helena cache status` to validate the release
+assets, exact grids, physics and SHA256 identities. `helena cache build` is the
+explicit, more expensive local alternative. Select the same directory with
+`cache_dir=` or `HELENA_CACHE_DIR`; offline copies must include all response
+data and metadata. Normal examples never download or rebuild responses.
+The historical [BH C513 v1 resource](https://github.com/LiYangji/HELENA-resources/releases/tag/bh-c513-v1)
+is for v0.1.0 grids and is incompatible with v0.1.1. `fetch --legacy` preserves
+access to that unchanged archive; it is not preparation for current examples.
+See the [root cache instructions](../README.md#response-cache-lifecycle) and
+[v0.1.1 release notes](../docs/release_notes_v0.1.1.md).
 
 ## Data sources and attribution
 

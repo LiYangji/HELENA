@@ -22,8 +22,12 @@ class ModelConfig:
 
     ``enable_internal_gamma_gamma`` defaults to ``True``. Setting it to
     ``False`` disables internal gamma-gamma absorption and its pair injection
-    only; the synchrotron target, photomeson interactions, and independent
+    only; internal IC, photomeson interactions, and independent
     external gamma-gamma semantics remain unchanged.
+
+    ``enable_ssc`` is a retained input name: it now enables internal inverse
+    Compton emission and cooling on the complete internal photon density.
+    External Compton remains a separate fixed-reservoir process.
     """
 
     magnetic_field_G: float
@@ -118,10 +122,13 @@ class ForwardResult:
 
     ``sed`` retains the existing high-energy fields and additionally provides
     ``broadband_*`` blob, observer, and Earth fields for the canonical escaped
-    low-plus-high photon SED. ``components`` includes additive escaped
+    full-grid photon SED. ``components`` includes additive escaped
     broadband process groups in the same frames. Source-resolved lepton groups
     are post-convergence diagnostics with the final transport, target, and
-    transfer state frozen. All mappings and host arrays are read-only.
+    transfer state frozen. The internal-IC process group includes all internal
+    photon seeds. Fields named ``ssc`` contain only the synchrotron-seeded
+    diagnostic and must not be added to the internal-IC component or total.
+    All mappings and host arrays are read-only.
     """
 
     sed: Mapping[str, object]
@@ -191,9 +198,7 @@ def _observer_ebl_support(config, observer_energy_erg):
         return np.arange(energy.size), np.ones_like(energy)
     from helena.core.propagation import _prepare_ebl_supported_transmission
 
-    indices, transmission = _prepare_ebl_supported_transmission(
-        energy, config.redshift
-    )
+    indices, transmission = _prepare_ebl_supported_transmission(energy, config.redshift)
     positive = transmission > 0.0
     if not np.any(positive):
         raise ValueError("observer photon grid has no positive EBL support")
@@ -207,7 +212,7 @@ def _earth_broadband_photon_support(config, configuration):
     )
     from helena.models.c513 import _canonical_broadband_photon_support
 
-    energy_blob, _, _ = _canonical_broadband_photon_support(configuration)
+    energy_blob = _canonical_broadband_photon_support(configuration)
     energy_observer, unit_luminosity = transform_comoving_sed(
         energy_blob,
         np.ones_like(energy_blob),
@@ -290,7 +295,10 @@ def _forward_result(raw, config, configuration):
     component_values = {
         "energy_blob_erg": canonical["photon"]["energy_blob_erg"],
         "electron_synchrotron_energy_luminosity_blob_erg_s": inner[
-            "electron_synchrotron_high_energy_intrinsic_sed_erg_s"
+            "electron_synchrotron_intrinsic_sed_erg_s"
+        ],
+        "internal_ic_energy_luminosity_blob_erg_s": inner[
+            "internal_ic_intrinsic_sed_erg_s"
         ],
         "ssc_energy_luminosity_blob_erg_s": inner["ssc_intrinsic_sed_erg_s"],
         "external_compton_energy_luminosity_blob_erg_s": inner[
@@ -307,9 +315,7 @@ def _forward_result(raw, config, configuration):
         "total_intrinsic_energy_luminosity_blob_erg_s": inner[
             "total_gamma_intrinsic_sed_erg_s"
         ],
-        "broadband_energy_blob_erg": canonical["photon"][
-            "broadband_energy_blob_erg"
-        ],
+        "broadband_energy_blob_erg": canonical["photon"]["broadband_energy_blob_erg"],
         "broadband_energy_observer_erg": broadband_energy_observer,
         "broadband_earth_source_indices": earth_indices,
         "broadband_energy_earth_erg": broadband_energy_observer[earth_indices],
@@ -317,12 +323,12 @@ def _forward_result(raw, config, configuration):
     for name, luminosity in canonical["photon_components"].items():
         luminosity = np.asarray(luminosity)
         observer_flux = luminosity * flux_scale
-        component_values[
-            f"{name}_broadband_escaped_energy_luminosity_blob_erg_s"
-        ] = luminosity
-        component_values[
-            f"{name}_broadband_escaped_energy_flux_observer_erg_cm2_s"
-        ] = observer_flux
+        component_values[f"{name}_broadband_escaped_energy_luminosity_blob_erg_s"] = (
+            luminosity
+        )
+        component_values[f"{name}_broadband_escaped_energy_flux_observer_erg_cm2_s"] = (
+            observer_flux
+        )
         component_values[
             f"{name}_broadband_ebl_attenuated_energy_flux_earth_erg_cm2_s"
         ] = np.asarray(
@@ -333,9 +339,7 @@ def _forward_result(raw, config, configuration):
         in component_values
         for name in _SOURCE_RESOLVED_ADDITIVE_COMPONENTS
     ):
-        earth_total = photon[
-            "broadband_ebl_attenuated_energy_flux_earth_erg_cm2_s"
-        ]
+        earth_total = photon["broadband_ebl_attenuated_energy_flux_earth_erg_cm2_s"]
         earth_sum = sum(
             component_values[
                 f"{name}_broadband_ebl_attenuated_energy_flux_earth_erg_cm2_s"
@@ -345,8 +349,7 @@ def _forward_result(raw, config, configuration):
         support = earth_total > np.max(earth_total) * 1.0e-20
         diagnostics["source_resolved_escaped_earth_maximum_relative_error"] = float(
             np.max(
-                np.abs(earth_sum[support] - earth_total[support])
-                / earth_total[support]
+                np.abs(earth_sum[support] - earth_total[support]) / earth_total[support]
             )
         )
         diagnostics["source_resolved_escaped_earth_weighted_error"] = float(
@@ -361,9 +364,7 @@ def _forward_result(raw, config, configuration):
         )
     return ForwardResult(
         sed=_readonly_tree(photon),
-        components=_readonly_tree(
-            component_values
-        ),
+        components=_readonly_tree(component_values),
         particles=_readonly_tree(particles),
         neutrinos=_readonly_tree(neutrinos),
         diagnostics=MappingProxyType(diagnostics),

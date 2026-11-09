@@ -1,153 +1,214 @@
-"""One-way gamma-gamma pair injection from an intrinsic gamma-ray SED."""
+"""Unified internal gamma-gamma operations and explicit migration errors."""
 
+import jax
 import jax.numpy as jnp
 import numpy as np
 
-from helena.core.contracts import real_1d as _real_1d
-from helena.core.jax_backend.chains.gamma_gamma_internal_photon_field import (
-    _gamma_gamma_internal_photon_field_with_absorption_coefficient_jax,
+from helena.core.constants import (
+    ELECTRON_REST_ENERGY_CGS as _MEC2_CGS,
 )
+from helena.core.constants import (
+    SPEED_OF_LIGHT_CGS as _C_CGS,
+)
+from helena.core.contracts import real_1d as _real_1d
 from helena.core.jax_backend.kernels.gamma_gamma_absorption import (
-    _contains_tracer,
-    gamma_gamma_absorption_coefficient_jax,
+    _angle_averaged_cross_section_jax,
 )
 from helena.core.jax_backend.kernels.gamma_gamma_pair_injection import (
-    gamma_gamma_pair_injection_jax,
+    _contract_pair_response,
+    _trapezoid_weights,
+    prepare_gamma_gamma_pair_response_jax,
 )
 
-__all__ = ["gamma_gamma_pair_source_chain_jax"]
+__all__ = [
+    "gamma_gamma_pair_source_chain_jax",
+    "gamma_gamma_total_field_jax",
+    "prepare_gamma_gamma_total_field_response_jax",
+]
 
 
-def gamma_gamma_pair_source_chain_jax(
-    gamma_ray_energy_erg,
-    intrinsic_gamma_sed_erg_s,
-    target_photon_energy_erg,
-    dn_target_photon_denergy_cm3_erg,
-    lepton_gamma,
-    *,
-    radius_cm,
-    external_target_photon_energy_erg=None,
-    dn_external_target_photon_denergy_cm3_erg=None,
-    include_external_gamma_gamma_target=False,
-    internal_pair_response=None,
-    external_pair_response=None,
-):
-    """Return one-way gamma-gamma positron and electron injection.
+def gamma_gamma_pair_source_chain_jax(*args, **kwargs):
+    """Reject retired labelled internal-field orchestration explicitly.
 
-    Primary and target photon energies are strictly increasing blob-comoving
-    grids in erg. ``intrinsic_gamma_sed_erg_s`` is intrinsic ``E L_E`` in
-    erg s^-1, the target field is isotropic ``dn_target/dE`` in
-    cm^-3 erg^-1, ``lepton_gamma`` is a strictly increasing daughter
-    Lorentz-factor grid greater than one, and ``radius_cm`` is the homogeneous
-    sphere radius in cm.
-
-    With ``include_external_gamma_gamma_target=True``, the optional external
-    field is additionally treated as isotropic, homogeneous, co-spatial, and
-    blob-comoving. Internal and external absorption coefficients are evaluated
-    independently and summed before one mixed-sphere transfer. The resulting
-    internal gamma density is then passed to the pair kernel once per target,
-    and the charge-separated sources are summed. The prescribed external field
-    is not depleted. This is not an anisotropic or line-of-sight geometry.
-
-    Per-charge outputs are ``dN/(dV dt dgamma)`` in cm^-3 s^-1. No pair
-    multiplicity, target density, residence time, interpolation, transport,
-    radiation, feedback, cascade, or frame transform is applied a second time.
-    Optional internal/external pair responses are fixed-grid outputs of
-    ``prepare_gamma_gamma_pair_response_jax`` and keep traced dynamic spectra
-    on the discrete contraction path.
+    Separate produced gamma SED and synchrotron target inputs cannot specify
+    a unique internal total population. Use the common-state EM solver or
+    gamma_gamma_total_field_jax with an explicit dn/dE population instead.
     """
-    if not isinstance(include_external_gamma_gamma_target, (bool, np.bool_)):
-        raise ValueError("include_external_gamma_gamma_target must be boolean")
-    include_external_gamma_gamma_target = bool(include_external_gamma_gamma_target)
-    if include_external_gamma_gamma_target and (
-        external_target_photon_energy_erg is None
-        or dn_external_target_photon_denergy_cm3_erg is None
-    ):
-        raise ValueError(
-            "external target photon energy and density are required when "
-            "include_external_gamma_gamma_target=True"
-        )
-    if not _contains_tracer(lepton_gamma):
-        daughter = _real_1d(
-            "lepton_gamma",
-            lepton_gamma,
-            minimum_size=1,
-            positive=True,
-        )
-        if np.any(daughter <= 1.0) or np.any(np.diff(daughter) <= 0.0):
-            raise ValueError("lepton_gamma must contain strictly increasing values > 1")
+    raise ValueError(
+        "The one-way internal gamma-gamma chain is retired; rebuild unique source populations and use the unified EM solver"
+    )
 
-    internal_absorption_coefficient = gamma_gamma_absorption_coefficient_jax(
-        gamma_ray_energy_erg,
-        target_photon_energy_erg,
-        dn_target_photon_denergy_cm3_erg,
+
+def prepare_gamma_gamma_total_field_response_jax(
+    photon_energy_erg, lepton_gamma, *, pair_response=None
+):
+    """Prepare fixed grids for one isotropic internal photon population.
+
+    Both grids must be concrete, finite, strictly increasing float64-compatible
+    arrays with at least two nodes. Photon energies are blob-comoving erg;
+    daughter Lorentz factors exceed one. No density, radius or physical source
+    parameter is cached. This host preparation is outside JIT/AD.
+
+    An optional existing ``pair_response`` must belong to exactly these grids
+    (daughter, photon, photon); its provenance is the caller's responsibility.
+    It already includes c, isotropic angular averaging and BOTH dE quadrature
+    weights, but no same-population event factor of 1/2. No renormalization is
+    applied. The NumPy/SciPy kernels remain the independent reference backend.
+
+    Support masks flag photon pairs that CAN place a daughter outside the
+    finite daughter grid. They yield conservative bounds, not measured loss;
+    finite daughter quadrature error is reported separately by the operator.
+    """
+    if not jax.config.jax_enable_x64:
+        raise RuntimeError("JAX gamma-gamma total fields require jax_enable_x64")
+    energy = _real_1d(
+        "photon_energy_erg", photon_energy_erg, minimum_size=2, positive=True
     )
-    if include_external_gamma_gamma_target:
-        external_absorption_coefficient = gamma_gamma_absorption_coefficient_jax(
-            gamma_ray_energy_erg,
-            external_target_photon_energy_erg,
-            dn_external_target_photon_denergy_cm3_erg,
-        )
+    daughter = _real_1d("lepton_gamma", lepton_gamma, minimum_size=2, positive=True)
+    if np.any(np.diff(energy) <= 0.0):
+        raise ValueError("photon_energy_erg must be strictly increasing")
+    if np.any(daughter <= 1.0) or np.any(np.diff(daughter) <= 0.0):
+        raise ValueError("lepton_gamma must be strictly increasing and > 1")
+    scaled = energy / _MEC2_CGS
+    if (
+        not np.all(np.isfinite(scaled))
+        or scaled[-1] > np.sqrt(np.finfo(float).max) / 2.0
+    ):
+        raise ValueError("photon energy products exceed finite float64 range")
+    if pair_response is None:
+        pair_response = prepare_gamma_gamma_pair_response_jax(daughter, energy, energy)
     else:
-        external_absorption_coefficient = jnp.zeros_like(
-            internal_absorption_coefficient
-        )
-    total_absorption_coefficient = (
-        internal_absorption_coefficient + external_absorption_coefficient
+        supplied = np.asarray(pair_response)
+        if supplied.shape != (daughter.size, energy.size, energy.size):
+            raise ValueError("pair_response must have shape (daughter, photon, photon)")
+        if (
+            supplied.dtype != np.float64
+            or not np.all(np.isfinite(supplied))
+            or np.any(supplied < 0)
+        ):
+            raise ValueError("pair_response must be finite nonnegative float64")
+
+    # Maximize W^2=(1-1/s)*((x+y)^2-4s), 1<=s<=xy, at s=clip((x+y)/2).
+    # Rationalize the lower endpoint to avoid subtracting nearly equal numbers.
+    x, y = scaled[:, None], scaled[None, :]
+    product = x * y
+    active = product > 1.0
+    total = np.where(active, x + y, 2.0)
+    s = np.minimum(np.maximum(total / 2.0, 1.0), np.maximum(product, 1.0))
+    beta = np.sqrt(1.0 - 1.0 / s)
+    momentum = np.sqrt(np.maximum((x - y) ** 2 + 4.0 * (product - s), 0.0))
+    width = beta * momentum
+    lower = np.maximum((4.0 * s + total**2 / s - 4.0) / (2.0 * (total + width)), 1.0)
+    upper = (total + width) / 2.0
+    eps = 64.0 * np.finfo(np.float64).eps
+    lower_mask = active & (lower <= daughter[0] + eps * np.maximum(lower, daughter[0]))
+    upper_mask = active & (
+        upper >= daughter[-1] - eps * np.maximum(total, daughter[-1])
     )
-    internal = _gamma_gamma_internal_photon_field_with_absorption_coefficient_jax(
-        gamma_ray_energy_erg,
-        intrinsic_gamma_sed_erg_s,
-        total_absorption_coefficient,
-        radius_cm=radius_cm,
+    return {
+        "photon_energy_erg": jnp.asarray(energy, dtype=jnp.float64),
+        "lepton_gamma": jnp.asarray(daughter, dtype=jnp.float64),
+        "photon_integration_weights_erg": jnp.asarray(energy)
+        * _trapezoid_weights(jnp.log(energy)),
+        "lepton_integration_weights": _trapezoid_weights(daughter),
+        "absorption_kernel_cm2": _angle_averaged_cross_section_jax(
+            jnp.asarray(product)
+        ),
+        "pair_response": jnp.asarray(pair_response, dtype=jnp.float64),
+        "lower_support_mask": jnp.asarray(lower_mask),
+        "upper_support_mask": jnp.asarray(upper_mask),
+    }
+
+
+def gamma_gamma_total_field_jax(dn_photon_denergy_cm3_erg, response):
+    """Return frozen-field gamma-gamma collisions for ONE internal population.
+
+    ``response`` is the fixed-grid pytree from the preparation function above.
+    The dynamic ``dn/dE`` is isotropic, blob-comoving, cm^-3 erg^-1. It must
+    contain each physical photon once; this function does not add S/L/H or
+    infer source identities. All supported energies participate above the
+    actual pair threshold. No 1 MeV gate, density closure, SSA, photon escape,
+    external reservoir, transport or frame conversion is performed here.
+
+    Alpha is cm^-1; differential photon loss is cm^-3 s^-1 erg^-1; each charge's
+    Q is cm^-3 s^-1 dgamma^-1. Integrated rates/powers are per cm^3, not luminosity.
+    Powers use TOTAL lepton energy gamma*m_e*c^2, including rest mass.
+
+    The response describes labelled photon populations: it contains c and
+    angular/energy weights, but no event deduplication. For the same population
+    each charge is 0.5*R[n,n]. Photon loss is c*alpha*n WITHOUT that half.
+    Both density factors remain differentiable. Returned moment residuals are
+    signed (retained/incident - 1); they include quadrature AND finite-support
+    effects and must not be interpreted as actual outside-grid leakage.
+
+    Outside-grid quantities are conservative kinematic bounds computed from
+    photon event cells, not inferred from those residuals. Tolerances belong to
+    the caller. ``input_valid`` flags nonfinite/negative densities using JAX;
+    invalid inputs are not clipped. Shape/x64 checks are static. All dynamic
+    arithmetic is pure JAX, including zero-field-safe budgets and bounds.
+    """
+    if not jax.config.jax_enable_x64:
+        raise RuntimeError("JAX gamma-gamma total fields require jax_enable_x64")
+    density = jnp.asarray(dn_photon_denergy_cm3_erg, dtype=jnp.float64)
+    energy = response["photon_energy_erg"]
+    if density.shape != energy.shape:
+        raise ValueError("photon density must have the prepared photon-grid shape")
+    weights = response["photon_integration_weights_erg"]
+    weighted = density * weights
+    kernel = response["absorption_kernel_cm2"]
+    alpha = kernel @ weighted
+    loss = _C_CGS * alpha * density
+    cells = 0.5 * _C_CGS * kernel * weighted[:, None] * weighted[None, :]
+    events = jnp.sum(cells)
+    charge_source = (
+        0.5 * _contract_pair_response(response["pair_response"], density, density)[0]
     )
-    internal_positron, internal_electron = gamma_gamma_pair_injection_jax(
-        lepton_gamma,
-        gamma_ray_energy_erg,
-        internal["internal_photon_density_cm3_erg"],
-        target_photon_energy_erg,
-        dn_target_photon_denergy_cm3_erg,
-        pair_response=internal_pair_response,
+    daughter = response["lepton_gamma"]
+    daughter_weights = response["lepton_integration_weights"]
+    charge_rate = jnp.sum(charge_source * daughter_weights)
+    pair_power = 2.0 * _MEC2_CGS * jnp.sum(daughter * charge_source * daughter_weights)
+    photon_rate = jnp.sum(loss * weights)
+    photon_power = jnp.sum(energy * loss * weights)
+    incident_energy = energy[:, None] + energy[None, :]
+    lower = response["lower_support_mask"]
+    upper = response["upper_support_mask"]
+    lower_number = jnp.sum(cells * lower)
+    upper_number = jnp.sum(cells * upper)
+    lower_power_cells = (
+        cells * lower * jnp.minimum(2.0 * _MEC2_CGS * daughter[0], incident_energy)
     )
-    if include_external_gamma_gamma_target:
-        external_positron, external_electron = gamma_gamma_pair_injection_jax(
-            lepton_gamma,
-            gamma_ray_energy_erg,
-            internal["internal_photon_density_cm3_erg"],
-            external_target_photon_energy_erg,
-            dn_external_target_photon_denergy_cm3_erg,
-            pair_response=external_pair_response,
-        )
-    else:
-        external_positron = jnp.zeros_like(internal_positron)
-        external_electron = jnp.zeros_like(internal_electron)
-    positron = internal_positron + external_positron
-    electron = internal_electron + external_electron
+    upper_power_cells = cells * upper * incident_energy
+    outside_number = jnp.sum(cells * (lower | upper))
+    outside_power = jnp.sum(
+        jnp.minimum(lower_power_cells + upper_power_cells, cells * incident_energy)
+    )
+
+    def fraction(numerator, denominator):
+        safe = jnp.where(denominator > 0.0, denominator, 1.0)
+        return jnp.where(denominator > 0.0, numerator / safe, 0.0)
 
     return {
-        "volume_cm3": internal["volume_cm3"],
-        "absorption_coefficient_cm1": total_absorption_coefficient,
-        "gamma_gamma_internal_target_absorption_coefficient_cm1": (
-            internal_absorption_coefficient
+        "absorption_coefficient_cm1": alpha,
+        "photon_loss_rate_cm3_s_erg": loss,
+        "electron_pair_injection_dgamma_cm3_s": charge_source,
+        "positron_pair_injection_dgamma_cm3_s": charge_source,
+        "event_rate_cm3_s": events,
+        "photon_loss_number_rate_cm3_s": photon_rate,
+        "photon_loss_power_erg_cm3_s": photon_power,
+        "electron_injection_rate_cm3_s": charge_rate,
+        "positron_injection_rate_cm3_s": charge_rate,
+        "pair_injection_power_erg_cm3_s": pair_power,
+        "pair_number_relative_residual": fraction(charge_rate - events, events),
+        "pair_energy_relative_residual": fraction(
+            pair_power - photon_power, photon_power
         ),
-        "gamma_gamma_external_target_absorption_coefficient_cm1": (
-            external_absorption_coefficient
-        ),
-        "gamma_gamma_total_absorption_coefficient_cm1": (total_absorption_coefficient),
-        "optical_depth": internal["optical_depth"],
-        "transfer_factor": internal["transfer_factor"],
-        "intrinsic_sed_erg_s": internal["intrinsic_sed_erg_s"],
-        "escaped_sed_erg_s": internal["escaped_sed_erg_s"],
-        "removed_sed_erg_s": internal["removed_sed_erg_s"],
-        "internal_gamma_photon_density_cm3_erg": (
-            internal["internal_photon_density_cm3_erg"]
-        ),
-        "absorbed_photon_rate_cm3_s_erg": (internal["absorbed_photon_rate_cm3_s_erg"]),
-        "internal_target_positron_pair_injection_dgamma_cm3_s": (internal_positron),
-        "internal_target_electron_pair_injection_dgamma_cm3_s": (internal_electron),
-        "external_target_positron_pair_injection_dgamma_cm3_s": (external_positron),
-        "external_target_electron_pair_injection_dgamma_cm3_s": (external_electron),
-        "positron_pair_injection_dgamma_cm3_s": positron,
-        "electron_pair_injection_dgamma_cm3_s": electron,
-        "total_pair_injection_dgamma_cm3_s": positron + electron,
+        "lower_outside_per_charge_number_rate_bound_cm3_s": lower_number,
+        "upper_outside_per_charge_number_rate_bound_cm3_s": upper_number,
+        "lower_outside_pair_power_bound_erg_cm3_s": jnp.sum(lower_power_cells),
+        "upper_outside_pair_power_bound_erg_cm3_s": jnp.sum(upper_power_cells),
+        "outside_per_charge_number_rate_bound_cm3_s": outside_number,
+        "outside_pair_power_bound_erg_cm3_s": outside_power,
+        "outside_number_fraction_bound": fraction(outside_number, events),
+        "outside_energy_fraction_bound": fraction(outside_power, photon_power),
+        "input_valid": jnp.all(jnp.isfinite(density) & (density >= 0.0)),
     }

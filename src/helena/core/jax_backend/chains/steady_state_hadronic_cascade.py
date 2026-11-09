@@ -6,14 +6,18 @@ import numpy as np
 
 from helena.core.constants import (
     CHARGED_PION_MASS_CGS as _CHARGED_PION_MASS_G,
-    ELECTRON_REST_ENERGY_CGS as _MEC2_CGS,
-    ELEMENTARY_CHARGE_ESU as _E_ESU,
-    MUON_MASS_CGS as _MUON_MASS_G,
-    PROTON_REST_ENERGY_CGS as _PROTON_REST_ENERGY_CGS,
 )
-from helena.diagnostics import (
-    hadronic_cascade_meson_synchrotron_power_ledgers as _meson_synchrotron_power_ledgers,
-    hadronic_cascade_particle_ledgers as _particle_ledgers,
+from helena.core.constants import (
+    ELECTRON_REST_ENERGY_CGS as _MEC2_CGS,
+)
+from helena.core.constants import (
+    ELEMENTARY_CHARGE_ESU as _E_ESU,
+)
+from helena.core.constants import (
+    MUON_MASS_CGS as _MUON_MASS_G,
+)
+from helena.core.constants import (
+    PROTON_REST_ENERGY_CGS as _PROTON_REST_ENERGY_CGS,
 )
 from helena.core.jax_backend.chains.photomeson_chain import (
     photomeson_secondary_chain_jax,
@@ -33,17 +37,25 @@ from helena.core.jax_backend.kernels.proton_proton import (
     proton_proton_pion_injection_and_loss_jax,
 )
 from helena.core.jax_backend.radiation.synchrotron import synchrotron_sed_jax
-from helena.core.tables import PION_REST_ENERGIES_CGS as _PION_REST_ENERGY_CGS
 from helena.core.jax_backend.transport.proton_transport import (
     proton_steady_state_transport_jax,
 )
+from helena.core.tables import PION_REST_ENERGIES_CGS as _PION_REST_ENERGY_CGS
+from helena.diagnostics import (
+    hadronic_cascade_meson_synchrotron_power_ledgers as _meson_synchrotron_power_ledgers,
+)
+from helena.diagnostics import (
+    hadronic_cascade_particle_ledgers as _particle_ledgers,
+)
 
 __all__ = [
+    "electromagnetic_ledger_passed_jax",
+    "energy_weighted_spectral_defect_jax",
     "outer_hadronic_picard_step",
     "solve_steady_state_hadronic_cascade",
 ]
 
-_TARGET_NAMES = ("external", "internal_low", "internal_high")
+_TARGET_NAMES = ("external", "internal")
 _BETHE_HEITLER_MODES = ("off", "dynamic", "legacy_fixed_loss")
 _BH_PAIR_PROVIDER_DOMAIN = "born_omega_lt_600"
 _BH_PROTON_LOSS_PROVIDER = "existing_continuous_loss"
@@ -54,18 +66,10 @@ _NEUTRINO_KEYS = (
     "total_anti_nu_mu",
 )
 _EM_LEDGER_LIMITS = {
-    "electron_source_composition_residual": 1.0e-12,
-    "positron_source_composition_residual": 1.0e-12,
-    "intrinsic_gamma_composition_residual": 1.0e-12,
-    "gamma_gamma_transfer_residual": 1.0e-12,
-    "internal_photon_production_residual": 1.0e-12,
+    "photon_transfer_residual": 1.0e-12,
     "internal_photon_absorption_residual": 2.0e-10,
-    "relative_absorption_decomposition_residual": 2.0e-10,
-    "inverse_compton_loss_composition_residual": 1.0e-12,
-    "electron_pair_event_residual": 3.0e-2,
-    "positron_pair_event_residual": 3.0e-2,
-    "pair_multiplicity_residual": 3.0e-2,
-    "pair_energy_residual": 6.0e-2,
+    "pair_number_relative_residual": 5.0e-3,
+    "pair_energy_relative_residual": 5.0e-3,
     "electron_pair_remap_number_residual": 1.0e-12,
     "positron_pair_remap_number_residual": 1.0e-12,
     "electron_pair_remap_energy_residual": 1.0e-3,
@@ -100,48 +104,23 @@ def _target(energy, density):
     return {"energy_erg": energy, "density_cm3_erg": density}
 
 
-def _supported_target(energy, density, support):
-    target = _target(energy, density)
-    indices = np.flatnonzero(np.asarray(support, dtype=bool))
-    if indices.size < 2:
-        if np.any(np.asarray(target["density_cm3_erg"])[indices] > 0.0):
-            raise ValueError(
-                "a non-zero target band requires at least two native nodes"
-            )
-        return _target(target["energy_erg"], jnp.zeros_like(target["density_cm3_erg"]))
-    return _target(
-        target["energy_erg"][indices],
-        target["density_cm3_erg"][indices],
-    )
+def _target_components(previous_internal_photon_state, fixed_external_photon_state):
+    """One accepted internal population and a separate fixed external reservoir.
 
-
-def _target_components(
-    previous_internal_photon_state, fixed_external_photon_state, split
-):
-    low_energy = previous_internal_photon_state["low_energy_erg"]
-    high_energy = previous_internal_photon_state["high_energy_erg"]
-    split_value = float(np.asarray(split))
-    components = {
+    Both states use comoving erg and dn/dE in cm^-3 erg^-1. Old low/high
+    dictionaries cannot be converted without losing their differing transfer
+    semantics and are deliberately rejected by the required-key lookup.
+    """
+    return {
         "external": _target(
             fixed_external_photon_state["energy_erg"],
             fixed_external_photon_state["density_cm3_erg"],
         ),
-        "internal_low": _supported_target(
-            low_energy,
-            previous_internal_photon_state["low_density_cm3_erg"],
-            np.asarray(low_energy) <= split_value,
-        ),
-        "internal_high": _supported_target(
-            high_energy,
-            jnp.where(
-                jnp.asarray(high_energy) > split,
-                previous_internal_photon_state["high_density_cm3_erg"],
-                0.0,
-            ),
-            np.asarray(high_energy) >= split_value,
+        "internal": _target(
+            previous_internal_photon_state["energy_erg"],
+            previous_internal_photon_state["density_cm3_erg"],
         ),
     }
-    return components
 
 
 def _sum_component_chains(component_chains, proton_density):
@@ -188,14 +167,8 @@ def _bethe_heitler_mode(configuration):
 
 
 def _meson_synchrotron_sources(configuration, chain):
-    low_energy = jnp.asarray(
-        _value(configuration, "synchrotron_photon_energy_erg"), dtype=jnp.float64
-    )
-    high_energy = jnp.asarray(
+    photon_energy = jnp.asarray(
         _value(configuration, "gamma_ray_energy_erg"), dtype=jnp.float64
-    )
-    split = jnp.asarray(
-        _value(configuration, "synchrotron_split_energy_erg"), dtype=jnp.float64
     )
     pion_gamma = _value(configuration, "pion_gamma")
     muon_gamma = _value(configuration, "muon_gamma")
@@ -217,7 +190,7 @@ def _meson_synchrotron_sources(configuration, chain):
             charge_esu=_E_ESU,
         )
 
-    def split_seds(photon_energy, support):
+    def spectra(photon_energy):
         seds = {
             "pion_plus": emit(
                 photon_energy,
@@ -248,14 +221,12 @@ def _meson_synchrotron_sources(configuration, chain):
                 muon_enabled,
             ),
         }
-        seds = {name: jnp.where(support, sed, 0.0) for name, sed in seds.items()}
         seds["pion_total"] = seds["pion_plus"] + seds["pion_minus"]
         seds["muon_total"] = seds["muon_plus"] + seds["muon_minus"]
         seds["meson_total"] = seds["pion_total"] + seds["muon_total"]
         return seds
 
-    low_seds = split_seds(low_energy, low_energy <= split)
-    high_seds = split_seds(high_energy, high_energy > split)
+    seds = spectra(photon_energy)
     volume = 4.0 * jnp.pi * jnp.asarray(radius, dtype=jnp.float64) ** 3 / 3.0
 
     def injections(seds, energy):
@@ -268,62 +239,53 @@ def _meson_synchrotron_sources(configuration, chain):
         result["meson_total"] = result["pion_total"] + result["muon_total"]
         return result
 
-    low_injections = injections(low_seds, low_energy)
-    high_injections = injections(high_seds, high_energy)
     return {
         "pion_enabled": pion_enabled,
         "muon_enabled": muon_enabled,
-        "low_energy_intrinsic_seds_erg_s": low_seds,
-        "high_energy_intrinsic_seds_erg_s": high_seds,
-        "low_energy_photon_injections_cm3_s_erg": low_injections,
-        "high_energy_photon_injections_cm3_s_erg": high_injections,
-        "intrinsic_seds_erg_s": high_seds,
-        "photon_injections_cm3_s_erg": high_injections,
+        "intrinsic_seds_erg_s": seds,
+        "photon_injections_cm3_s_erg": injections(seds, photon_energy),
     }
 
 
-def _em_ledger(inner, electron_gamma):
+def electromagnetic_ledger_passed_jax(inner, relative_tolerance):
+    """Shared finite-program acceptance gate for the accepted EM state.
+
+    The scalar bool uses the same dimensionless residual limits as the host
+    diagnostic ledger; it introduces no alternate iteration or physical mode.
+    """
     values = inner["ledger_diagnostics"]
+    limits = {
+        **_EM_LEDGER_LIMITS,
+        "photon_map_number_residual": relative_tolerance,
+        "photon_map_energy_residual": relative_tolerance,
+    }
+    return jnp.all(
+        jnp.stack(
+            [
+                jnp.isfinite(values[name]) & (jnp.abs(values[name]) <= limit)
+                for name, limit in limits.items()
+            ]
+        )
+    )
+
+
+def _em_ledger(inner, relative_tolerance):
+    """Check the accepted total-field budgets, keeping signed errors explicit."""
+    values = inner["ledger_diagnostics"]
+    limits = {
+        **_EM_LEDGER_LIMITS,
+        "photon_map_number_residual": relative_tolerance,
+        "photon_map_energy_residual": relative_tolerance,
+    }
     checks = {
-        name: float(values[name]) < limit for name, limit in _EM_LEDGER_LIMITS.items()
+        name: np.isfinite(float(values[name])) and abs(float(values[name])) <= limit
+        for name, limit in limits.items()
     }
-    gamma = np.asarray(electron_gamma)
-    electron_source = np.asarray(inner["electron_total_injection_dgamma_cm3_s"])
-    positron_source = np.asarray(inner["positron_total_injection_dgamma_cm3_s"])
-    source_number_rate = max(
-        abs(_integral(electron_source, gamma)),
-        abs(_integral(positron_source, gamma)),
-        np.finfo(np.float64).tiny,
-    )
-    number_tolerance = 100.0 * np.finfo(np.float64).eps * source_number_rate
-    absorbed = float(values["absorbed_gamma_event_rate_cm3_s"])
-    electron_events = float(values["electron_pair_event_rate_cm3_s"])
-    positron_events = float(values["positron_pair_event_rate_cm3_s"])
-    pair_channel_near_zero = (
-        max(abs(absorbed), abs(electron_events), abs(positron_events))
-        <= number_tolerance
-    )
-    absolute_residuals = {
-        "relative_absorption_decomposition_residual": float(
-            values["absolute_absorption_decomposition_residual_cm3_s"]
-        ),
-        "electron_pair_event_residual": abs(electron_events - absorbed),
-        "positron_pair_event_residual": abs(positron_events - absorbed),
-        "pair_multiplicity_residual": abs(
-            electron_events + positron_events - 2.0 * absorbed
-        ),
-    }
-    if pair_channel_near_zero:
-        for name, residual in absolute_residuals.items():
-            checks[name] = residual <= number_tolerance
     return {
         "values": values,
-        "limits": _EM_LEDGER_LIMITS,
+        "limits": limits,
         "checks": checks,
-        "pair_channel_near_zero": pair_channel_near_zero,
-        "near_zero_absolute_residuals": absolute_residuals,
-        "near_zero_number_tolerance_cm3_s": number_tolerance,
-        "passed": all(checks.values()),
+        "passed": bool(electromagnetic_ledger_passed_jax(inner, relative_tolerance)),
     }
 
 
@@ -393,25 +355,14 @@ def _step_metrics(
     pp_scale = max(abs(pp_proton_loss), abs(pp_pion_power), np.finfo(np.float64).tiny)
     bh_scale = max(abs(bh_pair_energy), abs(bh_proton_loss), np.finfo(np.float64).tiny)
     return {
-        "target_internal_low_photon_energy_density_erg_cm3": _integral(
-            components["internal_low"]["energy_erg"]
-            * components["internal_low"]["density_cm3_erg"],
-            components["internal_low"]["energy_erg"],
+        "target_internal_photon_energy_density_erg_cm3": _integral(
+            components["internal"]["energy_erg"]
+            * components["internal"]["density_cm3_erg"],
+            components["internal"]["energy_erg"],
         ),
-        "target_internal_high_photon_energy_density_erg_cm3": _integral(
-            components["internal_high"]["energy_erg"]
-            * components["internal_high"]["density_cm3_erg"],
-            components["internal_high"]["energy_erg"],
-        ),
-        "internal_low_photon_energy_density_erg_cm3": _integral(
-            next_internal_state["low_energy_erg"]
-            * next_internal_state["low_density_cm3_erg"],
-            next_internal_state["low_energy_erg"],
-        ),
-        "internal_high_photon_energy_density_erg_cm3": _integral(
-            next_internal_state["high_energy_erg"]
-            * next_internal_state["high_density_cm3_erg"],
-            next_internal_state["high_energy_erg"],
+        "internal_photon_energy_density_erg_cm3": _integral(
+            next_internal_state["energy_erg"] * next_internal_state["density_cm3_erg"],
+            next_internal_state["energy_erg"],
         ),
         "proton_energy_density_erg_cm3": _integral(
             proton_gamma
@@ -466,29 +417,10 @@ def _step_metrics(
     }
 
 
-def _next_internal_state(configuration, inner):
-    split = _value(configuration, "synchrotron_split_energy_erg")
-    low_energy = jnp.asarray(
-        _value(configuration, "synchrotron_photon_energy_erg"),
-        dtype=jnp.float64,
-    )
-    high_energy = jnp.asarray(
-        _value(configuration, "gamma_ray_energy_erg"),
-        dtype=jnp.float64,
-    )
+def _next_internal_state(inner):
     return {
-        "low_energy_erg": low_energy,
-        "low_density_cm3_erg": jnp.where(
-            low_energy <= split,
-            inner["internal_low_energy_photon_density_cm3_erg"],
-            0.0,
-        ),
-        "high_energy_erg": high_energy,
-        "high_density_cm3_erg": jnp.where(
-            high_energy > split,
-            inner["internal_high_energy_gamma_photon_density_cm3_erg"],
-            0.0,
-        ),
+        "energy_erg": inner["photon_energy_erg"],
+        "density_cm3_erg": inner["internal_photon_density_cm3_erg"],
     }
 
 
@@ -506,17 +438,17 @@ def outer_hadronic_picard_step(
 
     Photon-state energies are in erg and densities are local isotropic or
     angle-averaged ``dn/dE`` in cm^-3 erg^-1. The internal state has
-    ``low_energy_erg``, ``low_density_cm3_erg``, ``high_energy_erg``, and
-    ``high_density_cm3_erg``. The fixed external state has ``energy_erg`` and
+    ``energy_erg`` and ``density_cm3_erg``. The fixed external state has ``energy_erg`` and
     ``density_cm3_erg``.
 
     ``production_configuration`` supplies the existing proton, pion, muon,
     electron, photon, and neutrino grids; proton and primary-lepton sources;
-    magnetic field, radius, transport rates, and synchrotron split energy.
+    magnetic field, radius, and transport rates. All internal photon sources
+    and hadronic targets use the same complete internal photon grid.
     ``bethe_heitler_mode`` is required and is one of ``"off"``, ``"dynamic"``,
     or ``"legacy_fixed_loss"``. Dynamic mode evaluates the existing continuous
-    proton loss and Born-domain pair provider independently on the external,
-    internal-low, and internal-high targets. The pair provider covers only
+    proton loss and Born-domain pair provider independently on the fixed
+    external target and the complete accepted internal target. The pair provider covers only
     ``2 <= omega < 600`` and returns positrons before electrons; its domain is
     not identical to the unchanged continuous-loss provider. A non-zero fixed
     ``fractional_bethe_heitler_energy_loss_rate_s_inv`` is valid only in
@@ -534,8 +466,10 @@ def outer_hadronic_picard_step(
     ``enable_pp=True`` adds cold-target proton cooling and charge-resolved pion
     injection using ``cold_proton_density_cm3``; the default is ``False``.
     pp and photomeson sources are independent and may be enabled together.
-    ``enable_ssc`` and ``enable_ec`` are static composition switches. Each
-    disables both its named inverse-Compton emission and electron cooling;
+    ``enable_ssc`` and ``enable_ec`` are static composition switches. The former
+    is a compatibility name for IC on the full accepted internal photon field;
+    the latter controls IC on the separate fixed external seed reservoir. Each
+    disables both the corresponding emission and electron/positron cooling;
     internal and external photon targets remain available to gamma-gamma and
     hadronic processes. Both default to ``True`` for compatibility.
     ``enable_internal_gamma_gamma=False`` disables only internal gamma-gamma
@@ -565,12 +499,13 @@ def outer_hadronic_picard_step(
     BH pair number and kinetic-energy injection metrics sum both charges and
     use cm^-3 s^-1 and erg cm^-3 s^-1; their comparison with continuous proton
     loss is a finite domain-mismatch diagnostic, not an energy-closure test.
-    Low/high targets are strict native-grid support slices; a non-zero band
-    therefore needs at least two native nodes. The shared split node may occur
-    in both grids, but its high-band density is exact zero.
+    The whole accepted internal population supplies both hadronic losses and
+    secondaries. The external field remains a fixed separate reservoir.
+    Both grids require at least two nodes, and prepared responses must match
+    their exact energy values, not just their array shapes.
 
-    Fixed BH responses are keyed by ``external``, ``internal_low``, and
-    ``internal_high``. Fixed gamma-gamma responses are forwarded to the inner
+    Fixed BH responses are keyed by ``external`` and ``internal``.
+    Fixed gamma-gamma responses are forwarded to the inner
     cascade. ``physics_only=True`` returns the production particle, secondary,
     EM-cascade, and photon-state results before NumPy host ledgers/checks; it
     changes no numerical physics and is intended for finite one-step tracing.
@@ -578,14 +513,9 @@ def outer_hadronic_picard_step(
     if not isinstance(physics_only, (bool, np.bool_)):
         raise ValueError("physics_only must be boolean")
     physics_only = bool(physics_only)
-    split = jnp.asarray(
-        _value(production_configuration, "synchrotron_split_energy_erg"),
-        dtype=jnp.float64,
-    )
     components = _target_components(
         previous_internal_photon_state,
         fixed_external_photon_state,
-        split,
     )
     proton_gamma = jnp.asarray(
         _value(production_configuration, "proton_gamma"), dtype=jnp.float64
@@ -798,13 +728,8 @@ def outer_hadronic_picard_step(
             "enable_ec",
             True,
         ),
-        compose_proton_synchrotron_low_energy=True,
-        synchrotron_primary_split_energy_erg=split,
-        meson_synchrotron_low_energy_intrinsic_sed_erg_s=(
-            meson_synchrotron["low_energy_intrinsic_seds_erg_s"]["meson_total"]
-        ),
-        meson_synchrotron_intrinsic_sed_erg_s=meson_synchrotron["intrinsic_seds_erg_s"][
-            "meson_total"
+        meson_synchrotron_intrinsic_seds_erg_s=meson_synchrotron[
+            "intrinsic_seds_erg_s"
         ],
         additional_fixed_inverse_compton_loss_rate_dgamma_s=_value(
             production_configuration,
@@ -829,7 +754,7 @@ def outer_hadronic_picard_step(
             production_configuration, "inner_maximum_iterations", 32
         ),
     )
-    next_state = _next_internal_state(production_configuration, inner)
+    next_state = _next_internal_state(inner)
     if physics_only:
         return {
             "target_components": components,
@@ -851,7 +776,9 @@ def outer_hadronic_picard_step(
         proton_escape,
         chain,
     )
-    em_ledger = _em_ledger(inner, electron_gamma)
+    em_ledger = _em_ledger(
+        inner, _value(production_configuration, "inner_relative_tolerance", 1.0e-4)
+    )
     meson_synchrotron_ledgers = _meson_synchrotron_power_ledgers(
         production_configuration,
         chain,
@@ -906,45 +833,32 @@ def outer_hadronic_picard_step(
             atol=0.0,
         )
     )
-    low_meson_injections = meson_synchrotron["low_energy_photon_injections_cm3_s_erg"]
-    high_meson_injections = meson_synchrotron["high_energy_photon_injections_cm3_s_erg"]
-    low_meson_seds = meson_synchrotron["low_energy_intrinsic_seds_erg_s"]
-    high_meson_seds = meson_synchrotron["high_energy_intrinsic_seds_erg_s"]
+    meson_injections = meson_synchrotron["photon_injections_cm3_s_erg"]
+    meson_seds = meson_synchrotron["intrinsic_seds_erg_s"]
     meson_component_sums_passed = all(
         np.array_equal(np.asarray(left), np.asarray(right))
-        for injections in (low_meson_injections, high_meson_injections)
         for left, right in (
             (
-                injections["pion_total"],
-                injections["pion_plus"] + injections["pion_minus"],
+                meson_injections["pion_total"],
+                meson_injections["pion_plus"] + meson_injections["pion_minus"],
             ),
             (
-                injections["muon_total"],
-                injections["muon_plus"] + injections["muon_minus"],
+                meson_injections["muon_total"],
+                meson_injections["muon_plus"] + meson_injections["muon_minus"],
             ),
             (
-                injections["meson_total"],
-                injections["pion_total"] + injections["muon_total"],
+                meson_injections["meson_total"],
+                meson_injections["pion_total"] + meson_injections["muon_total"],
             ),
         )
     )
-    meson_injected_once = (
+    source_components = inner["photon_components_intrinsic_sed_erg_s"]
+    meson_injected_once = all(
         np.array_equal(
-            np.asarray(inner["meson_synchrotron_low_energy_intrinsic_sed_erg_s"]),
-            np.asarray(low_meson_seds["meson_total"]),
+            np.asarray(source_components[name + "_synchrotron"]),
+            np.asarray(meson_seds[name + "_total"]),
         )
-        and np.array_equal(
-            np.asarray(inner["meson_synchrotron_intrinsic_sed_erg_s"]),
-            np.asarray(high_meson_seds["meson_total"]),
-        )
-        and np.allclose(
-            np.asarray(inner["total_hadronic_gamma_intrinsic_sed_erg_s"]),
-            np.asarray(inner["proton_synchrotron_high_energy_intrinsic_sed_erg_s"])
-            + np.asarray(inner["pi0_intrinsic_sed_erg_s"])
-            + np.asarray(high_meson_seds["meson_total"]),
-            rtol=1.0e-12,
-            atol=0.0,
-        )
+        for name in ("pion", "muon")
     )
     finite_nonnegative = _finite_nonnegative(
         {
@@ -958,7 +872,13 @@ def outer_hadronic_picard_step(
             "component_bethe_heitler_pairs": component_bh_pairs,
             "meson_synchrotron": meson_synchrotron,
             "proton_escape": proton_escape,
-            "inner": inner,
+            "inner": {
+                "photon_density": inner["internal_photon_density_cm3_erg"],
+                "photon_sources": source_components,
+                "escaped_sources": inner["photon_components_escaped_sed_erg_s"],
+                "electron_density": inner["electron_density_dgamma_cm3"],
+                "positron_density": inner["positron_density_dgamma_cm3"],
+            },
             "next_internal_photon_state": next_state,
         }
     )
@@ -988,16 +908,14 @@ def outer_hadronic_picard_step(
         "component_bethe_heitler_pair_injections": component_bh_pairs,
         "q_bh_electron_dgamma_cm3_s": bh_electron,
         "q_bh_positron_dgamma_cm3_s": bh_positron,
-        "q_gamma_pion_plus_syn_cm3_s_erg": high_meson_injections["pion_plus"],
-        "q_gamma_pion_minus_syn_cm3_s_erg": high_meson_injections["pion_minus"],
-        "q_gamma_muon_plus_syn_cm3_s_erg": high_meson_injections["muon_plus"],
-        "q_gamma_muon_minus_syn_cm3_s_erg": high_meson_injections["muon_minus"],
-        "q_gamma_pion_syn_total_cm3_s_erg": high_meson_injections["pion_total"],
-        "q_gamma_muon_syn_total_cm3_s_erg": high_meson_injections["muon_total"],
-        "q_gamma_meson_syn_total_cm3_s_erg": high_meson_injections["meson_total"],
-        "q_gamma_meson_syn_low_cm3_s_erg": low_meson_injections,
-        "meson_synchrotron_low_energy_intrinsic_seds_erg_s": low_meson_seds,
-        "meson_synchrotron_intrinsic_seds_erg_s": high_meson_seds,
+        "q_gamma_pion_plus_syn_cm3_s_erg": meson_injections["pion_plus"],
+        "q_gamma_pion_minus_syn_cm3_s_erg": meson_injections["pion_minus"],
+        "q_gamma_muon_plus_syn_cm3_s_erg": meson_injections["muon_plus"],
+        "q_gamma_muon_minus_syn_cm3_s_erg": meson_injections["muon_minus"],
+        "q_gamma_pion_syn_total_cm3_s_erg": meson_injections["pion_total"],
+        "q_gamma_muon_syn_total_cm3_s_erg": meson_injections["muon_total"],
+        "q_gamma_meson_syn_total_cm3_s_erg": meson_injections["meson_total"],
+        "meson_synchrotron_intrinsic_seds_erg_s": meson_seds,
         "meson_synchrotron_switches": {
             "pion": meson_synchrotron["pion_enabled"],
             "muon": meson_synchrotron["muon_enabled"],
@@ -1050,6 +968,32 @@ def _scalar_residual(new, old):
     }
 
 
+def energy_weighted_spectral_defect_jax(new, old, coordinate):
+    """Return the host outer-loop energy-weighted L1 defect as a JAX scalar.
+
+    Integrates coordinate*|spectrum| with respect to coordinate (dE for
+    photons, dgamma for particles). A vanishing pair is zero; invalid arrays
+    or unresolved differences at a subnormal norm return infinity.
+    """
+    coordinate = jnp.asarray(coordinate, dtype=jnp.float64)
+    new = jnp.asarray(new, dtype=jnp.float64)
+    old = jnp.asarray(old, dtype=jnp.float64)
+    new_norm = jnp.trapezoid(coordinate * jnp.abs(new), x=coordinate)
+    old_norm = jnp.trapezoid(coordinate * jnp.abs(old), x=coordinate)
+    denominator = jnp.maximum(new_norm, old_norm)
+    absolute = jnp.trapezoid(coordinate * jnp.abs(new - old), x=coordinate)
+    tiny = jnp.finfo(jnp.float64).tiny
+    near_zero = denominator <= tiny
+    relative = absolute / jnp.where(near_zero, 1.0, denominator)
+    relative = jnp.where(near_zero, jnp.where(absolute <= tiny, 0.0, jnp.inf), relative)
+    finite = (
+        jnp.all(jnp.isfinite(new))
+        & jnp.all(jnp.isfinite(old))
+        & jnp.all(jnp.isfinite(coordinate))
+    )
+    return jnp.where(finite & jnp.isfinite(relative), relative, jnp.inf)
+
+
 def _energy_weighted_spectral_residual(new, old, coordinate):
     coordinate = np.asarray(coordinate)
     new = np.asarray(new)
@@ -1061,15 +1005,18 @@ def _energy_weighted_spectral_residual(new, old, coordinate):
     near_zero = denominator <= np.finfo(np.float64).tiny
     return {
         "near_zero": near_zero,
-        "relative_residual": None if near_zero else absolute / denominator,
+        "relative_residual": (
+            None
+            if near_zero
+            else float(energy_weighted_spectral_defect_jax(new, old, coordinate))
+        ),
         "absolute_residual": absolute,
     }
 
 
 def _outer_residuals(previous, current, production_configuration, outer_rtol):
     metric_names = (
-        "internal_low_photon_energy_density_erg_cm3",
-        "internal_high_photon_energy_density_erg_cm3",
+        "internal_photon_energy_density_erg_cm3",
         "photomeson_loss_power_erg_s",
         "proton_proton_loss_power_erg_s",
         "proton_proton_pion_injected_power_erg_s",
@@ -1096,19 +1043,10 @@ def _outer_residuals(previous, current, production_configuration, outer_rtol):
             previous["proton_density_dgamma_cm3"],
             _value(production_configuration, "proton_gamma"),
         ),
-        "internal_low_photon_spectrum_energy_weighted": (
-            _energy_weighted_spectral_residual(
-                current["next_internal_photon_state"]["low_density_cm3_erg"],
-                previous["next_internal_photon_state"]["low_density_cm3_erg"],
-                current["next_internal_photon_state"]["low_energy_erg"],
-            )
-        ),
-        "internal_high_photon_spectrum_energy_weighted": (
-            _energy_weighted_spectral_residual(
-                current["next_internal_photon_state"]["high_density_cm3_erg"],
-                previous["next_internal_photon_state"]["high_density_cm3_erg"],
-                current["next_internal_photon_state"]["high_energy_erg"],
-            )
+        "internal_photon_spectrum_energy_weighted": _energy_weighted_spectral_residual(
+            current["next_internal_photon_state"]["density_cm3_erg"],
+            previous["next_internal_photon_state"]["density_cm3_erg"],
+            current["next_internal_photon_state"]["energy_erg"],
         ),
     }
     residuals = {**scalar_residuals, **spectral_residuals}
@@ -1177,7 +1115,7 @@ def solve_steady_state_hadronic_cascade(
     adjacent feedback residuals can be evaluated. ``outer_rtol`` must be
     finite and positive. ``required_consecutive_passes`` defaults to two;
     convergence requires that many adjacent updates to pass the proton,
-    internal-low-photon, and internal-high-photon spectral checks together.
+    internal-photon spectral checks together.
     State/configuration units, frame, and physical assumptions are those of
     :func:`outer_hadronic_picard_step`.
 

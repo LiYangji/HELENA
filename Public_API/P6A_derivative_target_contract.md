@@ -23,10 +23,12 @@ with it.
 
 `helena.fitting.public._earth_photon_log_sed_target(model, parameters)` is
 the private maintained owner. It reuses P4's `_model_prediction` closure and
-therefore its existing fixed five `outer_hadronic_picard_step(...,
-physics_only=True)` rounds, physical model mapping, prepared responses,
+therefore its bounded `outer_hadronic_picard_step(..., physics_only=True)`
+scan with convergence freezing and iteration-limit failure, physical mapping,
+prepared responses,
 observer transform, and luminosity-distance scaling. P6A copies no physics,
-solver, mapper, or P4 likelihood code.
+solver, mapper, or P4 likelihood code. The derivative is of this finite
+program, not an implicit steady-state derivative.
 
 The energy grid is P3/P4's observer/Earth photon grid. The helper returns the
 selected read-only energy array, read-only original-grid support indices,

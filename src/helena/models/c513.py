@@ -1,4 +1,4 @@
-"""Validated blob-comoving C513 scenario and response preparation.
+"""Canonical blob-comoving C513 scenario and response preparation.
 
 Importing this canonical model intentionally enables global JAX x64 before any
 scientific arrays are built; backend kernels also fail fast when x64 is absent.
@@ -14,11 +14,7 @@ from helena.core.jax_backend.chains.steady_state_hadronic_cascade import (
     _target_components,
     solve_steady_state_hadronic_cascade,
 )
-from helena.core.jax_backend.kernels.gamma_gamma_pair_injection import (
-    prepare_gamma_gamma_pair_response_jax,
-)
 from helena.core.jax_backend.radiation.inverse_compton import inverse_compton_sed_jax
-from helena.core.jax_backend.radiation.ssa import _transfer_from_quantities
 from helena.core.jax_backend.radiation.synchrotron import electron_synchrotron_sed_jax
 from helena.core.jax_backend.transport.electron_positron_transport import (
     electron_positron_steady_state_transport_jax,
@@ -33,6 +29,7 @@ from helena.core.synchrotron import _C_CGS
 from helena.runtime_cache import (
     bethe_heitler_response_fingerprint,
     load_or_prepare_bethe_heitler_pair_response_jax,
+    load_or_prepare_gamma_gamma_response_jax,
 )
 
 jax.config.update("jax_enable_x64", True)
@@ -70,141 +67,6 @@ INNER_MAXIMUM_ITERATIONS = 32
 _INJECTION_QUADRATURE_NODES, _INJECTION_QUADRATURE_WEIGHTS = (
     np.polynomial.legendre.leggauss(64)
 )
-
-# Canonical float64 bits for the validated C513 daughter grid.
-_C513_DAUGHTER_GRID_BITS = (
-    0x3ff000010c6f7a0b, 0x3ff0fc4f5c5e21bd, 0x3ff208284f9d357f, 0x3ff32480f9ba58c5,
-    0x3ff4525d86e5b033, 0x3ff592d229ffb4ff, 0x3ff6e7041950ee3d, 0x3ff8502a9ad2cbbc,
-    0x3ff9cf9020ff1c6d, 0x3ffb6693792ab924, 0x3ffd16a90c800a05, 0x3ffee15c34bf176c,
-    0x4000642852fd771e, 0x400166a1f74faa23, 0x40027907878f1640, 0x40039c54155cc7fa,
-    0x4004d192297b4d1b, 0x400619dcb7aea675, 0x4007766021a1e967, 0x4008e85b49bf7438,
-    0x400a7120b6f72fc9, 0x400c1217ca7dd6bb, 0x400dccbe08a0ac02, 0x400fa2a875da801e,
-    0x4010cac284b4b647, 0x4011d38e1b5c2ce6, 0x4012eca9478223b9, 0x401417153e5dbced,
-    0x401553e30d161d9b, 0x4016a4349298ed6c, 0x4018093d88d48e72, 0x401984449e48bb02,
-    0x401b16a4a0ef2a3c, 0x401cc1cdbb8dba91, 0x401e8746c6947a35, 0x4020345756dde3ff,
-    0x402133def5d4e1e4, 0x402243240e7d3696, 0x4023631ed60d9a7c, 0x402494d6cbc0bec3,
-    0x4025d963a9edd142, 0x402731ee65faddb7, 0x40289fb240133c06, 0x402a23fde39aa8ad,
-    0x402bc0349964f4a7, 0x402d75cf8cca7bc6, 0x402f465f24c2d34a, 0x403099c63920ba35,
-    0x40319f8d5a91ccf3, 0x4032b5747c89971b, 0x4033dc79e5ec4983, 0x403515ab87562818,
-    0x40366227f2193691, 0x4037c31f5e71b840, 0x403939d4c1e16d29, 0x403ac79ef6b03d71,
-    0x403c6de9f5a0b455, 0x403e2e3822f75405, 0x40400511d802bcc7, 0x404101b0093da694,
-    0x40420dddc96c1457, 0x40432a9079b3027b, 0x404458cc98a179c2, 0x404599a6b089c0de,
-    0x4046ee4454891870, 0x404857dd2d258637, 0x4049d7bc1577773c, 0x404b6f4049e42455,
-    0x404d1fdea97db6ae, 0x404eeb230b2f3a64, 0x40506958d3f644e6, 0x40516c244d98cb47,
-    0x40527ee0bd987007, 0x4053a289851348e3, 0x4054d829812e62e9, 0x405620dbff42ea2c,
-    0x40577dcdc015c2dd, 0x4058f03e0b06c198, 0x405a797fd2334d5a, 0x405c1afae897b78b,
-    0x405dd62d4b4b0de2, 0x405facac7f02a494, 0x4060d013818e92b4, 0x4061d932edc451f4,
-    0x4062f2a719760fa7, 0x40641d718b4987a0, 0x40655aa3a6d894db, 0x4066ab5fa6d6ca60,
-    0x406810d9a69fa396, 0x40698c58bc2046fd, 0x406b1f38231ecd20, 0x406ccae87af0e1b1,
-    0x406e90f117c47328, 0x40703978b457862e, 0x4071395139e5bb77, 0x407248ec34e0b9e3,
-    0x407369422914611b, 0x40749b5ae927b6ef, 0x4075e04e8801c024, 0x40773946590ce9e9,
-    0x4078a77e00437e6a, 0x407a2c4492fe0fe0, 0x407bc8fdca8c1b5d, 0x407d7f2349af6ac7,
-    0x407f5045f62405d7, 0x40809f07b3b86d26, 0x4081a521b6285e05, 0x4082bb60d40c05b5,
-    0x4083e2c3a4c8a13f, 0x40851c586e70fb07, 0x4086693e1d1149d3, 0x4087caa54936b477,
-    0x408941d14ea2af87, 0x408ad019742936f8, 0x408c76ea25c89b0e, 0x408e37c6421a43ea,
-    0x40900a243e26c1e6, 0x4091071269f82d9e, 0x4092139511ef0256, 0x409330a1e4e02619,
-    0x40945f3db3d399ef, 0x4095a07d60a9216a, 0x4096f586db701a8d, 0x40985f922f5a546d,
-    0x4099dfeaa03ff99c, 0x409b77efd9b9cc87, 0x409d291730e70b9e, 0x409ef4ecfa0567a5,
-    0x40a06e8af989ccfb, 0x40a171a8626534a0, 0x40a284bbcda62d63, 0x40a3a8c0ec0100ab,
-    0x40a4dec2ef17f228, 0x40a627dd7df5b5e5, 0x40a7853db8971aaa, 0x40a8f8234b716224,
-    0x40aa81e193f1602e, 0x40ac23e0d6ff02b5, 0x40addf9f8aa16008, 0x40afb6b3b3f0e8ec,
-    0x40b0d5662d4bf84c, 0x40b1ded9899abb1e, 0x40b2f8a6d105856d, 0x40b423cfdbba74c1,
-    0x40b5616663e1788e, 0x40b6b28d00111d5e, 0x40b818782d30d056, 0x40b9946f68bbe2de,
-    0x40bb27ce5c6791fb, 0x40bcd4061c3e3dfd, 0x40be9a9e7852e2d3, 0x40c03e9bb1a0e723,
-    0x40c13ec537634d52, 0x40c24eb62fe1d498, 0x40c36f676d9664ef, 0x40c4a1e116aec23e,
-    0x40c5e73b96bdd22d, 0x40c740a09f50274e, 0x40c8af4c384e9785, 0x40ca348de1281692,
-    0x40cbd1c9c3cb6a51, 0x40cd8879fa8998ed, 0x40cf5a2fea0b3f3d, 0x40d0a44ad84aad58,
-    0x40d1aab7d5f6c9bf, 0x40d2c14f0ba1623a, 0x40d3e90f614a3cd8, 0x40d523077295b91b,
-    0x40d670568666fa72, 0x40d7d22d95ba896b, 0x40d949d062b1ee5a, 0x40dad896a0cf96e1,
-    0x40dc7fed2f7213da, 0x40de415767ae6e2f, 0x40e00f383f5d85a0, 0x40e10c767f17b4d6,
-    0x40e2194e29b87d69, 0x40e336b53bdd47a0, 0x40e465b0d921291a, 0x40e5a7563b0d1a56,
-    0x40e6fccbaec0041c, 0x40e86749a236bbf0, 0x40e9e81bc22a53c6, 0x40eb80a2298a4c97,
-    0x40ed3252a3a85a04, 0x40eefeba023c7ec2, 0x40f073bec43d393a, 0x40f1772e364243f0,
-    0x40f28a98b84e613e, 0x40f3aefa4ac540c8, 0x40f4e55e73e11ca6, 0x40f62ee1347a9666,
-    0x40f78cb00be48d01, 0x40f9000b0bc9afd7, 0x40fa8a45fd083911, 0x40fc2cc99697c470,
-    0x40fde914c795bac6, 0x40ffc0be15a64f17, 0x4100daba88755267, 0x4101e481ef703afc,
-    0x4102fea86eca4359, 0x41042a303053bb03, 0x4105682b44de0d1f, 0x4106b9bc9effd715,
-    0x410820191d4b59f1, 0x41099c88a4eadb2b, 0x410b30674da58a3f, 0x410cdd26a05f6f2d,
-    0x410ea44ee937ccf2, 0x411043c04f3dac37, 0x4111443aeed958bd, 0x411254820014e3d4,
-    0x4113758ea43126a7, 0x4114a86954fd151a, 0x4115ee2ad6d3884a, 0x411747fd398105e7,
-    0x4118b71ce8fc92e4, 0x411a3cd9ceed1ae8, 0x411bda988604547c, 0x411d91d3a0485c6a,
-    0x411f641d01769397, 0x4120a98fa75e5823, 0x4121b04fba8c3c35, 0x4122c73f23e1aa7d,
-    0x4123ef5d1c1276e1, 0x412529b8946fad64, 0x412677712ed02077, 0x4127d9b844be42a3,
-    0x412951d1fedc1966, 0x412ae1167d7ceca8, 0x412c88f3138414eb, 0x412e4aeb94a90331,
-    0x4130144ddc292d37, 0x413111dc492665c6, 0x41321f09115b31db, 0x41333cca7f461c49,
-    0x41346c26092f73d8, 0x4135ae31406526ea, 0x41370412cf331f6b, 0x41386f03868080ad,
-    0x4139f04f7c087850, 0x413b89573a3485d5, 0x413d3b9102ae3dcc, 0x413f088a24cfaedc,
-    0x414078f43495dd91, 0x41417cb5c9bd8396, 0x414290777e274e00, 0x4143b535a1ff8d20,
-    0x4144ebfc103339ad, 0x414635e723855167, 0x41479424babcf248, 0x414907f54cda4489,
-    0x414a92ad0e4eecc5, 0x414c35b528465134, 0x414df28d031a8323, 0x414fcacba5242a85,
-    0x4150e010939337a3, 0x4151ea2c1fd5d1ef, 0x415304abf35e3862, 0x4154309289b8c4c1,
-    0x41556ef24a7bcde0, 0x4156c0ee845b228b, 0x415827bc77b2c397, 0x4159a4a4717cbdf8,
-    0x415b3902f7b50d03, 0x415ce64a083e5ee8, 0x415eae026b6b83d7, 0x416048e68db1a482,
-    0x416149b260d3cb53, 0x41625a4fa60e739f, 0x41637bb7cd8258c9, 0x4164aef3a4ba18b6,
-    0x4165f51c48f49bcd, 0x41674f5c285c318e, 0x4168bef01315bb8a, 0x416a45285d21be29,
-    0x416be36a12189421, 0x416d9b303bdb56fd, 0x416f6e0d3d6467b5, 0x4170aed6217a75b5,
-    0x4171b5e964780ee8, 0x4172cd311d650c5c, 0x4173f5acd5c2dcf4, 0x4175306bd4aa5901,
-    0x41767e8e1702cdad, 0x4177e145570328fd, 0x417959d623ee6170, 0x417ae9990b0b0c8b,
-    0x417c91fbd2e5dd7a, 0x417e5482c9ff80ad, 0x41801965150c0747, 0x41811743c8ae95db,
-    0x418224c5c969fa7b, 0x418342e1afb68a87, 0x4184729d44a3fb05, 0x4185b50e7160f9d0,
-    0x41870b5c3d83f1f2, 0x418876bfdcfda561, 0x4189f885ceac9c64, 0x418b920f0c97a007,
-    0x418d44d24ee59daf, 0x418f125d62ba765f, 0x41907e2b4b193844, 0x4191823f1d64aaeb,
-    0x419296581fc765b6, 0x4193bb72f24f9c02, 0x4194f29bc4b7d612, 0x41963cef4bc9e55f,
-    0x41979b9bc5df5f84, 0x41990fe20f6dfa62, 0x419a9b16c89cd438, 0x419c3ea38cef45b3,
-    0x419dfc083e226ad1, 0x419fd4dc636c1ff2, 0x41a0e5684f2e69c8, 0x41a1efd81b5cae63,
-    0x41a30ab15f5b8450, 0x41a436f6e88d302a, 0x41a575bb75686cf8, 0x41a6c822b0db64e5,
-    0x41a82f623d2ace2d, 0x41a9acc2cf415b2f, 0x41ab41a15b72b72d, 0x41acef7054c540f3,
-    0x41aeb7b8ffe6a85f, 0x41b04e0e6d80c8c3, 0x41b14f2b8ddebee4, 0x41b2601f22633f2b,
-    0x41b381e2ea27dfdd, 0x41b4b580068d6b73, 0x41b5fc0fedd2fe19, 0x41b756bd6c9e91a8,
-    0x41b8c6c5b7629bb2, 0x41ba4d798c9ae512, 0x41bbec3e68ea2b22, 0x41bda48fce327676,
-    0x41bf78009ed370b9, 0x41c0b41e472638e2, 0x41c1bb84d449c8a1, 0x41c2d324f8c3e60a,
-    0x41c3fbfe8efd2ff7, 0x41c5372133f1738c, 0x41c685ad3fb54d50, 0x41c7e8d4cd4ac252,
-    0x41c961dcd2b637fd, 0x41caf21e4a540fea, 0x41cc9b076e7ef61f, 0x41ce5e1d08a7b24f,
-    0x41d01e7dea888b90, 0x41d11cacfe3ac633, 0x41d22a845277e07c, 0x41d348facdcaaa4e,
-    0x41d479168c247409, 0x41d5bbedceb07d84, 0x41d712a7fa6d3c02, 0x41d87e7ea6746b45,
-    0x41da00bebae93789, 0x41db9ac9a19309bf, 0x41dd4e16893bab94, 0x41df1c33bcf8a38a,
-    0x41e08364084cf1c2, 0x41e187ca31c59e05, 0x41e29c3a9dc549f7, 0x41e3c1b23c555678,
-    0x41e4f93d9218b483, 0x41e643f9adfc89f5, 0x41e7a3152e0b2602, 0x41e917d1544febc3,
-    0x41eaa3832cc98c8a, 0x41ec4794c57786e7, 0x41ee058679a07041, 0x41efdef05180259b,
-    0x41f0eac1bbcfd5ee, 0x41f1f585e2962c9d, 0x41f310b8b35c779d, 0x41f43d5d4d74cf1d,
-    0x41f57c86c651d3b4, 0x41f6cf5925393ddf, 0x41f8370a6e7778ca, 0x41f9b4e3bf08c48a,
-    0x41fb4a4279bb6b86, 0x41fcf89986de9344, 0x41fec172a7a22a04, 0x42005337ef2f3b73,
-    0x420154a6768679a6, 0x420265f075a830a2, 0x4203880ffabfd24f, 0x4204bc0e7b1ee0a4,
-    0x42060305c620d919, 0x42075e210705499b, 0x4208ce9dd6abfd4f, 0x420a55cd5e2db7c9,
-    0x420bf5158b5b62ef, 0x420dadf2583df49e, 0x420f81f726c2b459, 0x4210b96818e8ff41,
-    0x4211c1220a911d8e, 0x4212d91ab696c5d4, 0x42140252486363e5, 0x42153dd8b2f0eadd,
-    0x42168ccea99e2487, 0x4217f066a856d1f6, 0x421969e60c014fda, 0x421afaa63c32552f,
-    0x421ca415e73730c1, 0x421e67ba5197b196, 0x422023985d215b17, 0x42212217ea55a3b8,
-    0x42223044ad181b94, 0x42234f15da1ec4dd, 0x42247f91e056c8a1, 0x4225c2cf5903d411,
-    0x422719f606a9f942, 0x4228863fe3ab528d, 0x422a08fa4191041f, 0x422ba386fa067850,
-    0x422d575db29de47a, 0x422f260d34865456, 0x4230889e6cb6dcbd, 0x42318d57076e6ddd,
-    0x4232a21ef8b7cbfe, 0x4233c7f380b0d80a, 0x4234ffe178ffcd48, 0x42364b064ad1afb5,
-    0x4237aa90f3ffd3d9, 0x42391fc31c4b733d, 0x423aabf23bacf703, 0x423c5088d2c442a4,
-    0x423e0f07b687df39, 0x423fe907706283d4, 0x4240f01cda009479, 0x4241fb357613d6de,
-    0x424316c1effb9392, 0x424443c5b913a763, 0x424583543de6224d, 0x4246d691e22d8783,
-    0x42483eb50c5d0067, 0x4249bd0741a34d83, 0x424b52e6536c52a7, 0x424d01c59f751dec,
-    0x424ecb2f6397477b, 0x425058631341491e, 0x42515a231b576e21, 0x42526bc3a0726149,
-    0x42538e3effe8788a, 0x4254c29f031680c7, 0x425609fdd2908efb, 0x42576586f84db887,
-    0x4258d67871bae9b8, 0x425a5e23d2afa1d1, 0x425bfdef7a4ecc7c, 0x425db757daee5727,
-    0x425f8bf0d6318976, 0x4260beb3974a517e, 0x4261c6c107ddef9c, 0x4262df1257766a4d,
-    0x426408a802979ff3, 0x426544925254e329, 0x426693f25574121b, 0x4267f7fae8e9586c,
-    0x426971f1d09d9cc8, 0x426b0330e1807fc9, 0x426cad273df6a888, 0x426e715aa5c5e5c5,
-    0x427028b46d594075, 0x427127848d8a077b, 0x42723606d9de1254, 0x42735532d54f54e2,
-    0x4274860f41e11704, 0x4275c9b3110b5736, 0x4277214662f56064, 0x42788e0395691a1c,
-    0x427a11386376ff14, 0x427bac4716d1e7bd, 0x427d60a7cbfa106d, 0x427f2fe9ca5ff669,
-    0x42808dda78dcf681, 0x428192e59eed58a4, 0x4282a8053135ed05, 0x4283ce36c0026ee5,
-    0x428506877a174e6d, 0x4286521522fe0042, 0x4287b20f187d339b, 0x428927b7682c2bd2,
-    0x428ab463f61f3951, 0x428c597fb5baeee9, 0x428e188bf5cc501e, 0x428ff321c115d44b,
-    0x4290f579aa49e96b, 0x429200e6d66765b7, 0x42931ccd15d38aa4, 0x42944a302c0df299,
-    0x42958a23dcd3b012, 0x4296ddcce8715650, 0x42984662179fe02e, 0x4299c52d57e18b98,
-    0x429b5b8ce962db3c, 0x429d0af49f73f361, 0x429ed4ef34bf8df7, 0x42a05d8fda3b67f6,
-    0x42a15fa17cde3b94, 0x42a27198a35719da, 0x42a3946ffa404d5b, 0x42a4c9319f1c8975,
-    0x42a610f813d4ba59, 0x42a76cef41357974, 0x42a8de558958a9fb, 0x42aa667ceaf6524e,
-    0x42ac06cc36a74088, 0x42adc0c057346ffd, 0x42af95edae1f975a, 0x42b0c400c2d1e2f6,
-    0x42b1cc61ccc04e04,
-)
-_C513_DAUGHTER_GRID = np.asarray(_C513_DAUGHTER_GRID_BITS, dtype="<u8").view("<f8")
-_C513_DAUGHTER_GRID.setflags(write=False)
 
 
 def c513_configuration_from_log_offsets(configuration, offsets):
@@ -360,10 +222,11 @@ def _integral(values, coordinate):
 
 
 def _target_grid():
+    """Historical sampling nodes, with no collision or source selection role."""
     grid = np.geomspace(1.0e-9, 1.0e6, 96) * EV_TO_ERG
     points_per_decade = (grid.size - 1) / np.log10(grid[-1] / grid[0])
     for maximum in (6.1e-2, 6.1e-1, 6.1):
-        intervals = int(round(points_per_decade * np.log10(maximum / grid[-1])))
+        intervals = round(points_per_decade * np.log10(maximum / grid[-1]))
         grid = np.concatenate(
             (grid, np.geomspace(grid[-1], maximum, intervals + 1)[1:])
         )
@@ -374,21 +237,11 @@ def _target_grid():
     return grid
 
 
-def _aligned_lepton_grid(gamma_ray_energy):
-    maximum = (gamma_ray_energy[-1] + 1.0e6 * EV_TO_ERG) / _MEC2_CGS
+def _aligned_lepton_grid(photon_energy):
+    # Each daughter is bounded by the sum of both incoming photon energies.
+    maximum = 2.0 * photon_energy[-1] / _MEC2_CGS
     f4097 = np.geomspace(1.000001, maximum, 4097)
-    if _C513_DAUGHTER_GRID[0] != 1.000001 or _C513_DAUGHTER_GRID[-1] != maximum:
-        raise RuntimeError("canonical C513 endpoints no longer match the model")
-    f4097[::8] = _C513_DAUGHTER_GRID
-    c2049 = f4097[::2]
-    c513 = f4097[::8]
-    if not (
-        c513.size == 513
-        and np.array_equal(c513, c2049[::4])
-        and np.array_equal(c513[[0, -1]], f4097[[0, -1]])
-    ):
-        raise RuntimeError("C513 is not the exact nested C/F aligned grid")
-    return c513, c2049, f4097
+    return f4097[::8], f4097[::2], f4097
 
 
 def _cutoff_injection(
@@ -471,7 +324,7 @@ def _grid_metadata(grid, source):
 
 
 def build_c513_configuration():
-    """Build validated blob-comoving C513 quantities and numerical grids.
+    """Build blob-comoving C513 quantities on a shared photon grid.
 
     Particle ``gamma`` is total energy divided by rest energy. Particle
     injections and densities are per unit gamma; photon and neutrino fields
@@ -480,12 +333,21 @@ def build_c513_configuration():
     The fixed external photon state is already blob-comoving; this builder
     performs no host/AGN-to-blob transformation.
     """
-    split_energy = 1.0e6 * EV_TO_ERG
-    gamma_ray_energy = np.sort(
-        np.append(np.geomspace(1.0e2, 1.0e19, 112) * EV_TO_ERG, split_energy)
+    # Historical sampling nodes are retained, but no node selects a source or
+    # collision side. All radiation processes use this one complete grid.
+    photon_energy = np.unique(
+        np.concatenate((_target_grid(), np.geomspace(1.0e2, 1.0e19, 112) * EV_TO_ERG))
     )
-    synchrotron_energy = _target_grid()
-    electron_gamma, c2049, f4097 = _aligned_lepton_grid(gamma_ray_energy)
+    synchrotron_energy = gamma_ray_energy = photon_energy
+    electron_gamma, c2049, f4097 = _aligned_lepton_grid(photon_energy)
+    # Resolve the near-rest pair-source shape without changing particle transport.
+    pair_daughter_gamma = np.unique(
+        np.r_[
+            electron_gamma,
+            1.0
+            + np.geomspace(electron_gamma[0] - 1.0, electron_gamma[1] - 1.0, 26)[1:-1],
+        ]
+    )
 
     # Match the validated 40 intervals/decade proton resolution while extending
     # the existing 1e5..1e11 range down to the benchmark gamma_min=1 boundary.
@@ -512,10 +374,8 @@ def build_c513_configuration():
     )
     escape_rate = _C_CGS / RADIUS_CM
     initial_internal = {
-        "low_energy_erg": jnp.asarray(synchrotron_energy),
-        "low_density_cm3_erg": jnp.zeros(synchrotron_energy.size, dtype=jnp.float64),
-        "high_energy_erg": jnp.asarray(gamma_ray_energy),
-        "high_density_cm3_erg": jnp.zeros(gamma_ray_energy.size, dtype=jnp.float64),
+        "energy_erg": jnp.asarray(photon_energy),
+        "density_cm3_erg": jnp.zeros(photon_energy.size, dtype=jnp.float64),
     }
     fixed_external = {
         "energy_erg": jnp.asarray(external_energy),
@@ -553,11 +413,10 @@ def build_c513_configuration():
         ),
         "electron_adiabatic_rate_s_inv": jnp.float64(0.0),
         "electron_escape_rate_s_inv": jnp.float64(escape_rate),
-        "synchrotron_split_energy_erg": jnp.float64(split_energy),
         "additional_fixed_inverse_compton_loss_rate_dgamma_s": jnp.float64(0.0),
         "additional_continuous_loss_rate_dgamma_s": jnp.float64(0.0),
         "include_external_gamma_gamma_target": False,
-        "pair_daughter_gamma": None,
+        "pair_daughter_gamma": jnp.asarray(pair_daughter_gamma, dtype=jnp.float64),
         "inner_relaxation_omega": 1.0,
         "inner_relative_tolerance": INNER_RTOL,
         "inner_maximum_iterations": INNER_MAXIMUM_ITERATIONS,
@@ -616,7 +475,8 @@ def build_c513_configuration():
                 electron_gamma, "C513=F4097[::8]=C2049[::4]"
             ),
             "pair_daughter": _grid_metadata(
-                electron_gamma, "native identity path, pair_daughter_gamma=None"
+                pair_daughter_gamma,
+                "C513 plus 24 log(gamma-1) nodes in first cell; number-conserving remap to transport",
             ),
             "proton": _grid_metadata(
                 proton_gamma,
@@ -627,12 +487,9 @@ def build_c513_configuration():
             "neutrino": _grid_metadata(
                 neutrino_energy, "examples/photomeson_decay_chain.py"
             ),
-            "internal_low_photon": _grid_metadata(
-                synchrotron_energy, "validated overlap target configuration C"
-            ),
-            "high_energy_photon": _grid_metadata(
-                gamma_ray_energy,
-                "aligned C2049/F4097 EM configuration plus exact 1 MeV split",
+            "internal_photon": _grid_metadata(
+                photon_energy,
+                "complete union of historical sampling nodes; no physical split",
             ),
             "external_zero_placeholder": _grid_metadata(
                 external_energy, "historical 64-node external grid, density zero"
@@ -642,11 +499,18 @@ def build_c513_configuration():
             "c513_exactly_513": electron_gamma.size == 513,
             "c513_equals_c2049_every_four": np.array_equal(electron_gamma, c2049[::4]),
             "c513_equals_f4097_every_eight": np.array_equal(electron_gamma, f4097[::8]),
-            "native_pair_grid": production["pair_daughter_gamma"] is None,
+            "pair_daughter_exactly_537": pair_daughter_gamma.size == 537,
+            "pair_daughter_contains_transport": np.all(
+                np.isin(electron_gamma, pair_daughter_gamma)
+            ),
+            "pair_daughter_same_endpoints": np.array_equal(
+                pair_daughter_gamma[[0, -1]], electron_gamma[[0, -1]]
+            ),
             "all_float64": all(
                 np.asarray(value).dtype == np.float64
                 for value in (
                     electron_gamma,
+                    pair_daughter_gamma,
                     proton_gamma,
                     pion_gamma,
                     muon_gamma,
@@ -681,23 +545,40 @@ def build_c513_configuration():
     }
 
 
+def _validate_common_photon_grid(setup):
+    """Reject stale source/response axes at the concrete setup boundary."""
+    configuration = setup["production_configuration"]
+    grids = (
+        setup["initial_internal_photon_state_blob"]["energy_erg"],
+        configuration["synchrotron_photon_energy_erg"],
+        configuration["gamma_ray_energy_erg"],
+    )
+    if any(
+        isinstance(value, jax.core.Tracer) for value in jax.tree_util.tree_leaves(grids)
+    ):
+        raise ValueError("photon grids must be concrete; prepare the setup before JIT")
+    initial, synchrotron, gamma = (np.asarray(grid) for grid in grids)
+    if not np.array_equal(initial, gamma) or not np.array_equal(synchrotron, gamma):
+        raise ValueError(
+            "initial and configured photon grids must match exactly; rebuild the "
+            "setup when changing photon-grid values"
+        )
+
+
 def prepare_c513_responses(setup, *, cache_dir, allow_build=False):
     """Return fixed C513 BH and gamma-gamma responses for the internal solver.
 
     ``setup`` is returned by :func:`build_c513_configuration`.
-    ``cache_dir`` selects the existing strict persistent BH cache;
+    ``cache_dir`` selects the strict persistent BH and gamma-gamma cache;
     ``allow_build=False`` requires exact cache hits. Response units, grids,
     compatibility checks, and physical assumptions are inherited unchanged
     from the existing response builders.
     """
+    _validate_common_photon_grid(setup)
     initial = setup["initial_internal_photon_state_blob"]
     external = setup["fixed_external_photon_state_blob"]
     configuration = setup["production_configuration"]
-    components = _target_components(
-        initial,
-        external,
-        configuration["synchrotron_split_energy_erg"],
-    )
+    components = _target_components(initial, external)
     responses = {
         name: load_or_prepare_bethe_heitler_pair_response_jax(
             configuration["electron_gamma"],
@@ -719,11 +600,26 @@ def prepare_c513_responses(setup, *, cache_dir, allow_build=False):
     pair_gamma = configuration.get("pair_daughter_gamma")
     if pair_gamma is None:
         pair_gamma = configuration["electron_gamma"]
-    gamma_gamma_response = prepare_gamma_gamma_pair_response_jax(
-        pair_gamma,
+    gamma_gamma_response = load_or_prepare_gamma_gamma_response_jax(
         configuration["gamma_ray_energy_erg"],
-        configuration["synchrotron_photon_energy_erg"],
+        pair_gamma,
+        cache_dir=cache_dir,
+        allow_build=allow_build,
     )
+    if configuration.get("include_external_gamma_gamma_target", False):
+        external_response = load_or_prepare_gamma_gamma_response_jax(
+            configuration["gamma_ray_energy_erg"],
+            pair_gamma,
+            external["energy_erg"],
+            cache_dir=cache_dir,
+            allow_build=allow_build,
+        )
+        gamma_gamma_response["external_target_photon_energy_erg"] = external_response[
+            "target_photon_energy_erg"
+        ]
+        gamma_gamma_response["external_pair_response"] = external_response[
+            "pair_response"
+        ]
     return {
         "bethe_heitler_pair_responses": responses,
         "bethe_heitler_response_fingerprints": fingerprints,
@@ -732,87 +628,35 @@ def prepare_c513_responses(setup, *, cache_dir, allow_build=False):
 
 
 def _canonical_broadband_photon_support(configuration):
-    low_energy = np.asarray(configuration["synchrotron_photon_energy_erg"])
-    high_energy = np.asarray(configuration["gamma_ray_energy_erg"])
-    split = float(np.asarray(configuration["synchrotron_split_energy_erg"]))
-    low_stop = int(np.searchsorted(low_energy, split, side="right"))
-    high_start = int(np.searchsorted(high_energy, split, side="right"))
-    broadband_energy = np.concatenate(
-        (low_energy[:low_stop], high_energy[high_start:])
-    )
-    if np.any(np.diff(broadband_energy) <= 0.0):
-        raise RuntimeError("canonical broadband photon energy grid is not ordered")
-    return broadband_energy, low_stop, high_start
+    """Return the common blob-comoving photon axis without source selection."""
+    return np.asarray(configuration["gamma_ray_energy_erg"])
 
 
 def _canonical_broadband_escaped_photon_sed(configuration, inner):
-    broadband_energy, low_stop, high_start = _canonical_broadband_photon_support(
-        configuration
-    )
-    broadband_escaped = jnp.concatenate(
-        (
-            jnp.asarray(
-                inner["total_low_energy_photon_escaped_sed_erg_s"]
-            )[:low_stop],
-            jnp.asarray(inner["escaped_gamma_sed_erg_s"])[high_start:],
-        )
-    )
-    return broadband_energy, broadband_escaped
+    return inner["photon_energy_erg"], inner["escaped_photon_sed_erg_s"]
 
 
 def _canonical_broadband_escaped_photon_components(configuration, final):
-    """Return additive escaped process groups on the canonical photon grid."""
-    energy, low_stop, high_start = _canonical_broadband_photon_support(
-        configuration
-    )
+    """Read accepted escaped components; never reconstruct their transfer."""
     inner = final["inner_electromagnetic_cascade"]
-    low_meson = final["meson_synchrotron_low_energy_intrinsic_seds_erg_s"]
-    high_meson = final["meson_synchrotron_intrinsic_seds_erg_s"]
-    low_intrinsic = {
-        "transported_lepton_synchrotron": inner[
-            "electron_synchrotron_intrinsic_sed_erg_s"
-        ],
-        "transported_lepton_ssc": inner["ssc_low_energy_intrinsic_sed_erg_s"],
-        "proton_synchrotron": inner[
-            "proton_synchrotron_low_energy_intrinsic_sed_erg_s"
-        ],
-        "neutral_pion_decay": jnp.zeros_like(
-            configuration["synchrotron_photon_energy_erg"]
-        ),
-        "charged_pion_synchrotron": low_meson["pion_total"],
-        "muon_synchrotron": low_meson["muon_total"],
+    names = {
+        "transported_lepton_synchrotron": "electron_synchrotron",
+        "transported_lepton_internal_inverse_compton": "internal_ic",
+        "proton_synchrotron": "proton_synchrotron",
+        "neutral_pion_decay": "pi0",
+        "charged_pion_synchrotron": "pion_synchrotron",
+        "muon_synchrotron": "muon_synchrotron",
+        "external_compton": "external_compton",
     }
-    high_intrinsic = {
-        "transported_lepton_synchrotron": inner[
-            "electron_synchrotron_high_energy_intrinsic_sed_erg_s"
-        ],
-        "transported_lepton_ssc": inner["ssc_high_energy_intrinsic_sed_erg_s"],
-        "proton_synchrotron": inner[
-            "proton_synchrotron_high_energy_intrinsic_sed_erg_s"
-        ],
-        "neutral_pion_decay": inner["pi0_intrinsic_sed_erg_s"],
-        "charged_pion_synchrotron": high_meson["pion_total"],
-        "muon_synchrotron": high_meson["muon_total"],
+    accepted = inner["photon_components_escaped_sed_erg_s"]
+    return inner["photon_energy_erg"], {
+        public: accepted[physical] for public, physical in names.items()
     }
-    absorption = inner["electron_synchrotron_absorption_coefficient_cm1"]
-    high_transfer = inner["gamma_gamma_transfer_factor"]
-    components = {
-        name: jnp.concatenate(
-            (
-                _transfer_from_quantities(
-                    absorption, values, configuration["radius_cm"]
-                )[:low_stop],
-                jnp.asarray(high_intrinsic[name] * high_transfer)[high_start:],
-            )
-        )
-        for name, values in low_intrinsic.items()
-    }
-    return energy, components
 
 
 _SOURCE_RESOLVED_ADDITIVE_COMPONENTS = (
     "primary_electron_synchrotron",
-    "primary_electron_ssc",
+    "primary_electron_inverse_compton",
     "bethe_heitler_secondary_radiation",
     "photomeson_secondary_radiation",
     "gamma_gamma_reprocessed_radiation",
@@ -849,14 +693,11 @@ def _source_resolved_broadband_components(configuration, final):
     transport and radiation owners are then evaluated once per mutually
     exclusive injection class. Gamma-gamma pairs retain aggregate reprocessed
     ownership because their mixed parent-photon ancestry is not separable.
+    Internal IC uses the entire accepted internal photon density, and EC uses
+    the separate fixed external reservoir once. ``primary_electron_ssc`` is a
+    synchrotron-seeded diagnostic, not an additional additive component.
     """
     inner = final["inner_electromagnetic_cascade"]
-    if np.any(np.asarray(inner["external_compton_intrinsic_sed_erg_s"]) != 0.0):
-        raise RuntimeError(
-            "source-resolved canonical decomposition requires the Public model's "
-            "zero external photon field"
-        )
-
     electron_gamma = jnp.asarray(configuration["electron_gamma"], dtype=jnp.float64)
     photomeson = final["photomeson_chain"]
     sources = {
@@ -893,139 +734,94 @@ def _source_resolved_broadband_components(configuration, final):
         for name, (electron_source, positron_source) in sources.items()
     }
 
-    low_energy = jnp.asarray(
-        configuration["synchrotron_photon_energy_erg"], dtype=jnp.float64
-    )
-    high_energy = jnp.asarray(
-        configuration["gamma_ray_energy_erg"], dtype=jnp.float64
-    )
-    split = jnp.asarray(configuration["synchrotron_split_energy_erg"])
-    broadband_energy, low_stop, high_start = _canonical_broadband_photon_support(
-        configuration
-    )
-    target_density = inner["internal_synchrotron_photon_density_cm3_erg"]
-    ssc_enabled = bool(np.asarray(inner["enable_ssc"]))
-    low_synchrotron = {}
-    high_synchrotron = {}
-    low_inverse_compton = {}
-    high_inverse_compton = {}
+    photon_energy = inner["photon_energy_erg"]
+    broadband_energy = photon_energy
+    target_density = inner["internal_ic_seed_photon_density_cm3_erg"]
+    internal_ic_enabled = bool(np.asarray(inner["enable_internal_ic"]))
+    synchrotron = {}
+    inverse_compton = {}
+    internal_ic = {}
+    ec_enabled = bool(np.asarray(inner["enable_ec"]))
     for name, (electron_density, positron_density) in populations.items():
         lepton_density = electron_density + positron_density
-        low_synchrotron[name] = electron_synchrotron_sed_jax(
-            low_energy,
+        synchrotron[name] = electron_synchrotron_sed_jax(
+            photon_energy,
             electron_gamma,
             lepton_density,
             magnetic_field_G=configuration["magnetic_field_G"],
             radius_cm=configuration["radius_cm"],
         )
-        high_synchrotron[name] = jnp.where(
-            high_energy > split,
-            electron_synchrotron_sed_jax(
-                high_energy,
+        internal_ic[name] = (
+            inverse_compton_sed_jax(
+                photon_energy,
                 electron_gamma,
                 lepton_density,
-                magnetic_field_G=configuration["magnetic_field_G"],
-                radius_cm=configuration["radius_cm"],
-            ),
-            0.0,
-        )
-        if ssc_enabled:
-            low_owned = inverse_compton_sed_jax(
-                low_energy[:low_stop],
-                electron_gamma,
-                lepton_density,
-                low_energy,
+                photon_energy,
                 target_density,
                 radius_cm=configuration["radius_cm"],
             )
-            low_inverse_compton[name] = jnp.zeros_like(low_energy).at[
-                :low_stop
-            ].set(low_owned)
-            high_inverse_compton[name] = jnp.where(
-                high_energy > split,
-                inverse_compton_sed_jax(
-                    high_energy,
-                    electron_gamma,
-                    lepton_density,
-                    low_energy,
-                    target_density,
-                    radius_cm=configuration["radius_cm"],
-                ),
-                0.0,
-            )
-        else:
-            low_inverse_compton[name] = jnp.zeros_like(low_energy)
-            high_inverse_compton[name] = jnp.zeros_like(high_energy)
-
-    absorption = inner["electron_synchrotron_absorption_coefficient_cm1"]
-    high_transfer = inner["gamma_gamma_transfer_factor"]
-
-    def escaped(low_intrinsic, high_intrinsic):
-        return jnp.concatenate(
-            (
-                _transfer_from_quantities(
-                    absorption, low_intrinsic, configuration["radius_cm"]
-                )[:low_stop],
-                jnp.asarray(high_intrinsic * high_transfer)[high_start:],
-            )
+            if internal_ic_enabled
+            else jnp.zeros_like(photon_energy)
         )
+        external_compton = (
+            inverse_compton_sed_jax(
+                photon_energy,
+                electron_gamma,
+                lepton_density,
+                inner["external_photon_energy_erg"],
+                inner["external_photon_density_cm3_erg"],
+                radius_cm=configuration["radius_cm"],
+            )
+            if ec_enabled
+            else jnp.zeros_like(photon_energy)
+        )
+        inverse_compton[name] = internal_ic[name] + external_compton
 
-    _, aggregate = _canonical_broadband_escaped_photon_components(
-        configuration, final
+    def escaped(intrinsic):
+        return intrinsic * inner["photon_transfer_factor"]
+
+    primary_ssc = (
+        inverse_compton_sed_jax(
+            photon_energy,
+            electron_gamma,
+            sum(populations["primary"]),
+            photon_energy,
+            inner["internal_synchrotron_photon_density_cm3_erg"],
+            radius_cm=configuration["radius_cm"],
+        )
+        if internal_ic_enabled
+        else jnp.zeros_like(photon_energy)
     )
+    _, aggregate = _canonical_broadband_escaped_photon_components(configuration, final)
     mechanism_components = {
-        "primary_electron_synchrotron": escaped(
-            low_synchrotron["primary"], high_synchrotron["primary"]
-        ),
-        "primary_electron_inverse_compton": escaped(
-            low_inverse_compton["primary"], high_inverse_compton["primary"]
-        ),
-        "bethe_heitler_pair_synchrotron": escaped(
-            low_synchrotron["bethe_heitler"], high_synchrotron["bethe_heitler"]
-        ),
-        "bethe_heitler_pair_inverse_compton": escaped(
-            low_inverse_compton["bethe_heitler"],
-            high_inverse_compton["bethe_heitler"],
-        ),
-        "photomeson_secondary_pair_synchrotron": escaped(
-            low_synchrotron["photomeson"], high_synchrotron["photomeson"]
-        ),
+        "primary_electron_synchrotron": escaped(synchrotron["primary"]),
+        "primary_electron_inverse_compton": escaped(inverse_compton["primary"]),
+        "bethe_heitler_pair_synchrotron": escaped(synchrotron["bethe_heitler"]),
+        "bethe_heitler_pair_inverse_compton": escaped(inverse_compton["bethe_heitler"]),
+        "photomeson_secondary_pair_synchrotron": escaped(synchrotron["photomeson"]),
         "photomeson_secondary_pair_inverse_compton": escaped(
-            low_inverse_compton["photomeson"],
-            high_inverse_compton["photomeson"],
+            inverse_compton["photomeson"]
         ),
-        "gamma_gamma_reprocessed_pair_synchrotron": escaped(
-            low_synchrotron["gamma_gamma"], high_synchrotron["gamma_gamma"]
-        ),
+        "gamma_gamma_reprocessed_pair_synchrotron": escaped(synchrotron["gamma_gamma"]),
         "gamma_gamma_reprocessed_pair_inverse_compton": escaped(
-            low_inverse_compton["gamma_gamma"],
-            high_inverse_compton["gamma_gamma"],
+            inverse_compton["gamma_gamma"]
         ),
     }
     components = {
         "primary_electron_synchrotron": mechanism_components[
             "primary_electron_synchrotron"
         ],
-        # Compatibility name retained; the final synchrotron target includes
-        # every enabled synchrotron source, so new displays should use the
-        # mechanism-accurate inverse-Compton alias below.
-        "primary_electron_ssc": mechanism_components[
+        "primary_electron_inverse_compton": mechanism_components[
             "primary_electron_inverse_compton"
         ],
         "bethe_heitler_secondary_radiation": escaped(
-            low_synchrotron["bethe_heitler"]
-            + low_inverse_compton["bethe_heitler"],
-            high_synchrotron["bethe_heitler"]
-            + high_inverse_compton["bethe_heitler"],
+            synchrotron["bethe_heitler"] + inverse_compton["bethe_heitler"]
         ),
         "photomeson_secondary_radiation": escaped(
-            low_synchrotron["photomeson"] + low_inverse_compton["photomeson"],
-            high_synchrotron["photomeson"] + high_inverse_compton["photomeson"],
+            synchrotron["photomeson"] + inverse_compton["photomeson"]
         ),
         "gamma_gamma_reprocessed_radiation": escaped(
-            low_synchrotron["gamma_gamma"] + low_inverse_compton["gamma_gamma"],
-            high_synchrotron["gamma_gamma"]
-            + high_inverse_compton["gamma_gamma"],
+            synchrotron["gamma_gamma"] + inverse_compton["gamma_gamma"]
         ),
         **{
             name: aggregate[name]
@@ -1037,39 +833,20 @@ def _source_resolved_broadband_components(configuration, final):
             )
         },
         **mechanism_components,
+        "primary_electron_ssc": escaped(primary_ssc),
     }
-
     electron_total = sum(population[0] for population in populations.values())
     positron_total = sum(population[1] for population in populations.values())
-    synchrotron_actual = jnp.concatenate(
-        (
-            sum(low_synchrotron.values())[:low_stop],
-            sum(high_synchrotron.values())[high_start:],
-        )
+    synchrotron_actual = sum(synchrotron.values())
+    synchrotron_expected = inner["photon_components_intrinsic_sed_erg_s"][
+        "electron_synchrotron"
+    ]
+    inverse_compton_actual = sum(inverse_compton.values())
+    inverse_compton_expected = (
+        inner["photon_components_intrinsic_sed_erg_s"]["internal_ic"]
+        + inner["photon_components_intrinsic_sed_erg_s"]["external_compton"]
     )
-    synchrotron_expected = jnp.concatenate(
-        (
-            inner["electron_synchrotron_intrinsic_sed_erg_s"][:low_stop],
-            inner["electron_synchrotron_high_energy_intrinsic_sed_erg_s"][
-                high_start:
-            ],
-        )
-    )
-    inverse_compton_actual = jnp.concatenate(
-        (
-            sum(low_inverse_compton.values())[:low_stop],
-            sum(high_inverse_compton.values())[high_start:],
-        )
-    )
-    inverse_compton_expected = jnp.concatenate(
-        (
-            inner["ssc_low_energy_intrinsic_sed_erg_s"][:low_stop],
-            inner["ssc_high_energy_intrinsic_sed_erg_s"][high_start:],
-        )
-    )
-    _, total_escaped = _canonical_broadband_escaped_photon_sed(
-        configuration, inner
-    )
+    _, total_escaped = _canonical_broadband_escaped_photon_sed(configuration, inner)
     metrics = {}
     for prefix, actual, expected, coordinate in (
         (
@@ -1133,9 +910,8 @@ def run_c513_forward(
     builder, solver, and propagation functions. ``canonical_quantities`` is
     the supported quantity-aware handoff: every key names its frame, measure,
     and ``E L_E`` luminosity versus ``E F_E`` flux semantics. Its broadband
-    photon fields concatenate the escaped low-energy photon segment through
-    the canonical split with the escaped high-energy gamma segment strictly
-    above it, without interpolation. The returned
+    photon fields read the common accepted internal photon population and its
+    escaped components, without split masks or an independent transfer call. The returned
     mapping is the complete solver result with its comoving particles,
     components, ledgers, diagnostics, and convergence state, plus the existing
     observer gamma/EBL and source/Earth neutrino outputs. No new radiation or
@@ -1144,6 +920,7 @@ def run_c513_forward(
     setup = build_c513_configuration() if setup is None else setup
     if production_configuration is not None:
         setup = {**setup, "production_configuration": production_configuration}
+    _validate_common_photon_grid(setup)
     configuration = setup["production_configuration"]
     if prepared_responses is None:
         if cache_dir is None:
@@ -1246,9 +1023,7 @@ def run_c513_forward(
             ),
         },
         "photon_components": broadband_components,
-        "source_resolved_photon_component_diagnostics": (
-            source_resolved_diagnostics
-        ),
+        "source_resolved_photon_component_diagnostics": (source_resolved_diagnostics),
         "neutrino": {
             "energy_blob_erg": configuration["neutrino_energy_erg"],
             "source_injection_blob_denergy_cm3_s": observer["neutrino"][

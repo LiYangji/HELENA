@@ -156,10 +156,8 @@ def _synchrotron_power_ledger(
     density,
     particle_mass,
     cooling_time,
-    low_photon_energy,
-    low_intrinsic_sed,
-    high_photon_energy,
-    high_intrinsic_sed,
+    photon_energy,
+    intrinsic_sed,
     volume,
     enabled,
 ):
@@ -169,9 +167,7 @@ def _synchrotron_power_ledger(
         gamma * density * particle_mass * _C_CGS**2 * gamma / cooling_time,
         np.log(gamma),
     )
-    photon_power = _integral(low_intrinsic_sed, np.log(low_photon_energy)) + _integral(
-        high_intrinsic_sed, np.log(high_photon_energy)
-    )
+    photon_power = _integral(intrinsic_sed, np.log(photon_energy))
     scale = max(abs(loss_power), abs(photon_power), np.finfo(np.float64).tiny)
     near_zero = max(abs(loss_power), abs(photon_power)) <= np.finfo(np.float64).tiny
     residual = 0.0 if near_zero else (photon_power - loss_power) / scale
@@ -196,27 +192,21 @@ def hadronic_cascade_meson_synchrotron_power_ledgers(
     """Return post-state pion/muon synchrotron conservation ledgers."""
     pion_gamma = np.asarray(_value(configuration, "pion_gamma"))
     muon_gamma = np.asarray(_value(configuration, "muon_gamma"))
-    low_photon_energy = np.asarray(
-        _value(configuration, "synchrotron_photon_energy_erg")
-    )
-    high_photon_energy = np.asarray(_value(configuration, "gamma_ray_energy_erg"))
+    photon_energy = np.asarray(_value(configuration, "gamma_ray_energy_erg"))
     magnetic_field = float(_value(configuration, "magnetic_field_G"))
     radius = float(_value(configuration, "radius_cm"))
     volume = 4.0 * np.pi * radius**3 / 3.0
     pion_cooling = charged_pion_synchrotron_cooling_time(pion_gamma, magnetic_field)
     muon_cooling = muon_synchrotron_cooling_time(muon_gamma, magnetic_field)
-    low_seds = sources["low_energy_intrinsic_seds_erg_s"]
-    high_seds = sources["high_energy_intrinsic_seds_erg_s"]
+    seds = sources["intrinsic_seds_erg_s"]
     ledgers = {
         "pion_plus": _synchrotron_power_ledger(
             pion_gamma,
             chain["n_pi_plus"],
             _CHARGED_PION_MASS_G,
             pion_cooling,
-            low_photon_energy,
-            low_seds["pion_plus"],
-            high_photon_energy,
-            high_seds["pion_plus"],
+            photon_energy,
+            seds["pion_plus"],
             volume,
             sources["pion_enabled"],
         ),
@@ -225,10 +215,8 @@ def hadronic_cascade_meson_synchrotron_power_ledgers(
             chain["n_pi_minus"],
             _CHARGED_PION_MASS_G,
             pion_cooling,
-            low_photon_energy,
-            low_seds["pion_minus"],
-            high_photon_energy,
-            high_seds["pion_minus"],
+            photon_energy,
+            seds["pion_minus"],
             volume,
             sources["pion_enabled"],
         ),
@@ -237,10 +225,8 @@ def hadronic_cascade_meson_synchrotron_power_ledgers(
             chain["n_mu_plus_left"] + chain["n_mu_plus_right"],
             _MUON_MASS_G,
             muon_cooling,
-            low_photon_energy,
-            low_seds["muon_plus"],
-            high_photon_energy,
-            high_seds["muon_plus"],
+            photon_energy,
+            seds["muon_plus"],
             volume,
             sources["muon_enabled"],
         ),
@@ -249,10 +235,8 @@ def hadronic_cascade_meson_synchrotron_power_ledgers(
             chain["n_mu_minus_left"] + chain["n_mu_minus_right"],
             _MUON_MASS_G,
             muon_cooling,
-            low_photon_energy,
-            low_seds["muon_minus"],
-            high_photon_energy,
-            high_seds["muon_minus"],
+            photon_energy,
+            seds["muon_minus"],
             volume,
             sources["muon_enabled"],
         ),

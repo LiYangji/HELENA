@@ -50,7 +50,7 @@ have orientation `(energy,)` and equal `J.values @ direction`.
 
 The six logarithmic registry coordinates yield dimensionless derivatives.
 `p_e` and `p_p` derivatives are per unit spectral-index change. The public
-surface does not expose `physics_only`, the fixed-five map, Picard state,
+surface does not expose `physics_only`, the bounded iteration map, Picard state,
 `jax.jacfwd`, `jax.jvp`, tangent trees, raw responses, or AD strategy choices.
 
 CPU and GPU use these identical calls and result schema. CPU requests above

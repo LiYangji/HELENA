@@ -90,8 +90,9 @@ resolution, noise, and sharp distribution cutoffs.
 ## Implemented Isotropic Inverse Compton Scope
 
 The inverse-Compton implementation assumes angle-averaged isotropic electrons
-and photons in the homogeneous blob comoving frame. SSC and external photon
-fields use the same full isotropic Klein--Nishina kernel. The low-level kernel
+and photons in the homogeneous blob comoving frame. Internal and external
+fields use the same Jones/BG ultrarelativistic upscattering kernel including
+Klein--Nishina recoil, not arbitrary-energy redistribution. The low-level kernel
 continues to accept only blob-comoving tabulated ``dn_ph/dE`` in
 cm^-3 erg^-1.
 
@@ -162,24 +163,11 @@ geometry, observer transform, or JAX pair-injection kernel is included.
 
 ## Cascade photon population architecture
 
-The current gamma-gamma interface is an asymmetric, labelled primary-target
-construction. ``synchrotron_primary_split_energy_erg`` is an engineering
-approximation for assigning synchrotron photons to that interface, not a
-natural physical boundary. Target-grid coverage and the physical split are
-decoupled; science runs must explicitly record and hold the split fixed while
-checking split sensitivity and the contribution from target photons above it.
-
-The present closure permits the same synchrotron population above the split to
-appear on both the primary and target sides. This remains an approximation:
-the symmetric high-high/self-collision operator and its symmetry convention
-are not implemented.
-
-The long-term replacement should use either one unified broad photon
-population or a component-pair collision operator. Photon populations and
-collision kinematics should then determine which interactions occur, rather
-than permanently assigning photon identities with an artificial split. That
-refactor is deferred to a separate task and is not part of the current
-production closure.
+Production now uses the unified internal photon state documented under
+"Unified photon production state (M05 round 2)" below. Its source populations
+and reaction kinematics determine collision coverage. The former asymmetric
+primary/target assignment and 1 MeV source masks have been removed; independent
+labelled-density kernels remain useful primitives, with explicit event counting.
 
 ## Implemented Isotropic Bethe--Heitler Reference Scope
 
@@ -382,20 +370,15 @@ the existing arbitrary-mass synchrotron kernel. It retains separate
 densities are summed only within each charge because the classical emission is
 helicity independent.
 
-Each source is evaluated on both native photon grids and partitioned exactly
-once: ``E <= E_split`` is added to the existing low-energy intrinsic
-synchrotron source before the existing electron-SSA photon-production and
-escape treatment, while ``E > E_split`` enters the existing gamma-gamma
-transfer. The low/high power integrals are summed without spectral
-renormalization. The resulting local photon states feed the next outer
-photomeson and Bethe--Heitler evaluation in dynamic mode; frozen mode still
-returns them without feedback. The pion and muon switches default to off, and
-the C513 configuration keeps its external photon field exactly zero.
-
-This connection adds no kaon, pp, neutron, or general Bethe--Heitler process.
-Validation currently covers a controlled two-update outer flow, not a
-science-grid converged solution. The next step is a science-grid outer
-convergence benchmark.
+Each enabled meson source is evaluated once on the complete common photon
+grid. It enters the same SSA/gamma-gamma transfer as every internal photon
+source, and the accepted total density feeds the next photomeson/BH step.
+There is no low/high meson partition or spectral renormalization. Dynamic
+mode updates the target; frozen-target diagnostic mode remains explicitly
+nonconverged with respect to the outer fixed point. Pion/muon switches remain
+independent; the standard C513 configuration enables both and has zero external
+photon density. Quantitative validation scope is recorded per repair round,
+not inferred merely from the existence of this feedback path.
 
 ## Implemented Helicity-Dependent Muon Decay Scope
 
@@ -612,3 +595,202 @@ Future fitting wrappers may use log-space parameters, penalties, masks, clipping
 Real-source SED fitting is not considered proof that a physical module is correct.
 
 Each module must be validated through analytic limits, sanity checks, energy-budget checks, numerical stability tests, or comparison with published benchmarks.
+
+
+## Internal total-field gamma-gamma operator
+
+`core/jax_backend/chains/gamma_gamma_pair_source.py` also provides
+`prepare_gamma_gamma_total_field_response_jax(energy, daughter, ...)` and
+`gamma_gamma_total_field_jax(density, response)`. This additive, frozen-field
+operator is used by the unified electromagnetic fixed point described below.
+The former one-way internal chain now raises an explicit migration error.
+
+The input is one isotropic blob-comoving internal `dn/dE` in cm^-3 erg^-1,
+with each physical photon represented once on the prepared energy grid (erg).
+Do not form it by adding the overlapping legacy S, L and H fields. All allowed
+photon pairs participate; no 1 MeV collision gate or hard/soft approximation is
+introduced. Grids are fixed, strictly increasing and float64, with daughter
+gamma > 1. Preparation is a host operation; dynamic density arithmetic is JAX.
+
+The existing Breit-Wheeler opacity and full Boettcher-Schlickeiser differential
+pair kernels are retained (BS97, https://arxiv.org/pdf/astro-ph/9703069,
+Eqs. 8, 15-19, 24-25). The prepared pair response already contains c, angular
+averaging and both energy integration weights. It has no same-population
+counting factor: each charge's source is therefore `0.5 * R[n,n]`. Photon loss
+is `c * alpha[n] * n`, without that half. Both density factors are differentiated.
+Returned rates and powers are per volume, not whole-source luminosities; pair
+power includes rest mass. External prescribed fields are outside this operator.
+
+The result reports alpha, differential photon loss, each charge's source,
+event rate, integrated number/energy budgets and conservative outside-daughter
+bounds. Moment discrepancies include finite quadrature AND lost support; they
+are never removed by overall renormalization. Outside bounds may be loose and
+are not estimates of the missing spectrum. Caller-selected tolerances must
+check them separately; `input_valid` flags invalid densities without clipping.
+An optional reused response tensor must match the exact grids and kernel
+configuration, not just its shape. No dynamic photon density is cached.
+
+Minimal use (inspect the returned budgets before interpreting a spectrum):
+
+```python
+import jax
+import jax.numpy as jnp
+from helena.core.constants import ELECTRON_REST_ENERGY_CGS as mec2
+from helena.core.jax_backend.chains.gamma_gamma_pair_source import (
+    prepare_gamma_gamma_total_field_response_jax,
+    gamma_gamma_total_field_jax,
+)
+
+jax.config.update("jax_enable_x64", True)
+energy = mec2 * jnp.array([0.4, 1.0, 1.8, 3.0])
+daughter = jnp.linspace(1.000001, 6.0, 513)
+response = prepare_gamma_gamma_total_field_response_jax(energy, daughter)
+collision = jax.jit(lambda n: gamma_gamma_total_field_jax(n, response))
+result = collision(jnp.array([1.0, 2.0, 3.0, 0.5]) / mec2)
+jax.block_until_ready(result)
+```
+
+Frozen-field operator tests and density derivatives do not by themselves
+validate the coupled solver. Production closure is described below and must
+pass its own convergence and ledger checks. Finite daughter support must not
+be inferred from the historical `maximum photon energy + 1 MeV` endpoint.
+
+
+## Unified photon production state
+
+Production uses one complete photon grid (the union of the historical sampling
+nodes), not separate low/high physical populations. A 1 MeV sampling node has
+no collision, source-selection, or transfer meaning. The same seven populations
+(electron/positron synchrotron, proton synchrotron, charged-pion synchrotron,
+muon synchrotron, internal IC, EC, pi0 decay) supply one accepted internal dn/dE.
+Full-grid internal IC is produced in every electromagnetic iteration. Optional meson switches
+still set their corresponding sources to zero; optional pp products are already
+included in the photomeson/pp aggregate sources passed by the hadronic owner.
+
+All populations experience the same electron SSA plus internal/external gamma-
+gamma opacity, using the existing homogeneous-sphere path/escape primitives.
+SSA absorption is a property of the medium, not of which particle emitted a
+photon. This removes the old arbitrary high-energy and pi0 SSA exclusions;
+it does not extend the underlying classical, ultrarelativistic synchrotron/SSA
+formulae beyond their stated validity. No new proton/meson SSA kernel is added.
+Internal IC emission and cooling both read that accepted
+TOTAL internal density, including IC, EC-produced and pi0 photons. Fixed
+external seed density remains a separate EC reservoir and is never added to
+internal n. No SSA factor is applied again at the seed read. Higher scattering
+orders arise through the existing EM iteration, not separate populations.
+The Jones/BG and Moderski physical approximations remain; their scope and the
+necessary cooling quadrature correction are stated below.
+BH and photomeson loss and secondary production read the same total internal
+field, plus the separately prescribed external field. This broadens their old
+source selection (including the formerly omitted low pi0 tail). These are real
+physical prescription changes in addition to the gamma-gamma repair; they can
+change results even with internal gamma-gamma switched off.
+
+The EM scan carries photon components and electron/positron pair sources.
+Its stopping criterion includes true unrelaxed component-wise photon number
+and energy map defects, pair-source defects and particle/cooling changes.
+Accepted n drives opacity, pair production, internal IC, and the next hadronic step.
+Source production and escape belong to that same iterate; their mapped sphere
+density differs from accepted n by the explicitly reported convergence defect.
+Do not call this finite-tolerance state an exactly solved algebraic fixed point.
+An exhausted EM solve is marked unconverged; the public outer driver stops with
+failure, and the bounded fitting scan uses the same numerical-strategy outer limits
+and shared photon/proton spectral and EM-ledger checks. It returns NaN after
+failure or an unconverged iteration limit. Gradients remain those of this
+finite bounded scan with convergence freezing, not an implicit steady solution.
+
+The two historical EM positional photon-grid arguments must now be identical
+complete grids. Old split sources cannot be silently reconstructed. The old
+internal one-way gamma-gamma and independent photon-density orchestrators are
+migration-error entries, with their former physics bodies removed. Standalone
+radiation/absorption kernels remain available and are not production closures.
+Old split keywords and low/high density fields are removed. Scalar initial SSC
+cooling guesses are retired because cooling is derived from accepted photons.
+The public gamma SED aliases now live on the same full photon grid; canonical
+component output reads the accepted component arrays without retransferring.
+
+A fixed external field is a separate reservoir: internal x external collisions
+have no event half, remove only internal photons from the solved state, and
+report the external energy contribution separately. Cached external responses
+must include exact target-energy metadata in the prepared response. General
+hard external fields need their own daughter support check; the internal
+support bound is not a certificate for them. Internal daughter upper support
+is set from twice the maximum internal photon energy, replacing '+1 MeV'.
+Both BH and gamma-gamma response identities change with the actual grids;
+old same-shape cache data are not reused. EBL remains source-external propagation.
+
+Convergence and budget diagnostics are per-state requirements. Sharing a photon
+state is not evidence that a physical approximation or every parameter region
+has been validated.
+
+
+## Full internal IC seed state
+
+The historical `enable_ssc` / public `enable_synchrotron_self_compton` switch
+now enables the whole internal IC process. This is an explicit compatibility
+name, not a switch between old and new physical modes. The additive source
+bucket is `internal_ic`; `internal_inverse_compton_loss_rate_dgamma_s` and
+`internal_ic_seed_photon_density_cm3_erg` describe its cooling and total seed.
+The retained `ssc_intrinsic_sed_erg_s`, SSC cooling and primary-electron SSC
+outputs are diagnostics computed from the four synchrotron seeds only. Do not
+add them to internal IC or to the additive source decomposition. Internally
+created EC photons can scatter again; the prescribed external photons enter
+EC emission/cooling only once.
+
+The emission kernel is Jones/Blumenthal--Gould isotropic ultrarelativistic
+upscattering, with recoil but not arbitrary-energy Compton redistribution.
+The analytic Moderski et al. (2005), Appendix A, cooling is positive and cannot
+represent cold-electron Compton heating by hard photons. No source or fixed
+photon-energy mask is introduced to hide that domain limit. Quantitative
+frozen and final-state ERF Klein--Nishina diagnostics must establish whether
+the omitted heating/downscattering matters in a given calculation; a small
+total output difference is not a universal validity certificate.
+
+The cooling integral now uses `E^2 n(E) f_KN dln(E)` rather than coarse
+`E n(E) f_KN dE`. These are the same continuous formula. Independent refinement
+of the actual logarithmic source grids showed the old direct-energy trapezoid
+biased the power by about 2%; the log measure converged to the same limit as
+refined direct integration. The physical suppression and emitted spectrum
+kernel are unchanged. This numerical repair affects even synchrotron-only
+cooling, so comparisons with synchrotron-seeded cooling must separate it from added IC seeds.
+Particle-energy integration, finite scattered-photon support and remaining
+quadrature errors are still audited separately; there is no spectrum-wide
+renormalization to force power equality.
+
+There is no IC seed removal term in the production photon density mapping.
+It is retained as an optically thin scattering approximation only where
+independent scattering-rate/residence checks pass the stated error budget.
+Production photon losses continue to mean SSA and gamma-gamma losses; seed
+removal is not silently included in those rates. A general dense-scattering
+or hard-photon dominated source is not certified by the two paper examples.
+All dynamic internal seed components remain on both JAX feedback paths;
+derivatives are of the existing bounded iteration with convergence freezing.
+
+
+## v0.1.1 numerical accuracy and validation scope
+
+The maintained production configuration uses 249 photon integration nodes,
+537 pair-daughter nodes and 513 electron/positron transport nodes. The daughter
+grid is locally refined near gamma = 1--100; it is not the BH transport grid.
+Frozen-state refinement of the 249-point photon integral found about 2.0--2.5%
+L1 differences in the pair spectrum in the two checked states. This is a known
+quadrature limitation, not a 1% accuracy claim or a bound on the final SED.
+Number/energy moments, interpolation and daughter support are separate checks.
+No overall normalization is applied to hide discrepancies.
+
+The checked TXS and controlled states converge with the common photon field.
+The eight registered parameter directions passed multiple-step AD/FD checks
+at the tested TXS point. Default/tighter/deeper iteration comparisons and a
+CPU/GPU comparison support that specific calculation. These derivatives are
+of the finite, bounded iteration with convergence freezing; they do not prove
+strict implicit steady-state derivatives or validity throughout parameter space.
+
+Convergence is not guaranteed for every source configuration. A former strongly
+hadron-loaded GPU Quickstart initial point remains unconverged even with 80
+inner and outer iterations: its fifth outer step loses convergence progress
+and fails photon and pair budgets. It is not a valid steady state; replacing
+the example starting point does not establish a converged solution at that
+failed point. Inspect both `converged` and `conservation_checks_passed`; finite,
+nonnegative spectra alone are insufficient. The v0.1.1 release does not broaden
+the IC kernel to arbitrary-energy Compton redistribution, add an IC seed-removal
+operator, or establish time-dependent stability.

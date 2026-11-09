@@ -1,7 +1,8 @@
-# Minimal Public API Specification — v0.1 Frozen
+# HELENA v0.1.1 Public API Specification
 
-Status: P1--P7B PASS. The frozen disposition is recorded in the P7B summary
-and freeze contract.
+P1--P7B records the historical API freeze. Current numerical and cache semantics
+are described here and in the [v0.1.1 release notes](../docs/release_notes_v0.1.1.md);
+the historical freeze contract does not override these scientific fixes.
 
 ## P2 implemented foundations
 
@@ -78,8 +79,9 @@ enter the existing `mixed_sed_nll`.
 
 `parameters` is any unique ordered 1--8 registry subset. The input physical
 `ModelConfig` is the initial point; omitted registry values remain fixed at
-that exact config. Existing reference coordinates, mappers, fixed-five fitting
-graph, likelihood, and optimizer driver are reused unchanged. L-BFGS-B and
+that exact config. Existing reference coordinates, mappers, likelihood, and
+optimizer driver are retained. The predictor uses the shared physics core in
+a bounded outer scan, freezes at convergence, and fails on iteration exhaustion. L-BFGS-B and
 MIGRAD return the same frozen/slotted `FitResult` schema with physical best and
 fixed values plus a new `best_config`. No custom bounds are exposed in P4.
 
@@ -111,7 +113,7 @@ frozen in `P5_standalone_physics_contract.md`.
 
 ## P6A maintained differentiable target
 
-P6A freezes one private target on P4's existing model-bound fixed-five graph:
+P6A defines one private target on P4's model-bound convergence-frozen finite scan:
 
 ```text
 physical output:    Earth photon E F_E [erg cm^-2 s^-1], linear
@@ -286,7 +288,7 @@ Mandatory photon fields, matching the current `canonical_quantities` handoff:
 - `intrinsic_energy_flux_observer_erg_cm2_s`: pre-EBL observer `E F_E`;
 - `ebl_attenuated_energy_flux_earth_erg_cm2_s`: Earth `E F_E` after EBL.
 
-The existing five fields above retain their high-energy-grid semantics. The
+The existing five fields above now use the full common photon grid. The
 following additive fields expose the canonical complete escaped photon SED:
 
 - `broadband_energy_blob_erg`: strictly increasing blob-comoving energy;
@@ -304,22 +306,19 @@ following additive fields expose the canonical complete escaped photon SED:
 `enable_ebl=False` preserves identity propagation. When enabled, values below
 the validated EBL energy domain have transmission one, table-supported
 positive-transmission nodes use the existing Dominguez-2011 owner, and nodes
-above the table are not exposed or extrapolated. The low-energy grid owns
-nodes through and including the fixed 1 MeV split;
-the high-energy grid owns nodes strictly above it. Concatenation therefore has
-no duplicated overlap node, interpolation, smoothing, or re-normalization.
-The low segment is total electron/positron plus meson synchrotron after the
-existing homogeneous-sphere SSA transfer. The high segment is the existing
-total escaped gamma-ray SED after internal gamma-gamma transfer. No broadband
-smoothing or re-normalization is applied.
+above the table are not exposed or extrapolated. All internal sources share
+one full photon grid and accepted transfer state. No 1 MeV source selection
+or low/high output splice remains. No broadband smoothing or re-normalization
+is applied.
 
 ### `result.components`
 
 A read-only mapping containing `energy_blob_erg` and these intrinsic
-high-energy blob `E L_E` arrays:
+full-grid blob `E L_E` arrays:
 
 - `electron_synchrotron_energy_luminosity_blob_erg_s`;
-- `ssc_energy_luminosity_blob_erg_s`;
+- `internal_ic_energy_luminosity_blob_erg_s`;
+- `ssc_energy_luminosity_blob_erg_s` (synchrotron-seeded subset diagnostic, nonadditive);
 - `external_compton_energy_luminosity_blob_erg_s`;
 - `proton_synchrotron_energy_luminosity_blob_erg_s`;
 - `neutral_pion_decay_energy_luminosity_blob_erg_s`;
@@ -333,20 +332,19 @@ components are excluded.
 
 The mapping also contains canonical broadband energy grids and the retained
 aggregate process groups: transported-lepton synchrotron,
-transported-lepton SSC, proton synchrotron, neutral-pion decay,
-charged-pion synchrotron, and muon synchrotron. Each group is available as
+`transported_lepton_internal_inverse_compton`, external Compton, proton
+synchrotron, neutral-pion decay, charged-pion synchrotron, and muon synchrotron. Each group is available as
 blob `E L_E`, intrinsic-observer `E F_E`, and EBL-attenuated Earth `E F_E`.
 
 Nine additive source-resolved groups close to the escaped total:
-primary-electron synchrotron, primary-electron inverse Compton (with the
-frozen compatibility key `primary_electron_ssc`), Bethe--Heitler secondary
+primary-electron synchrotron, primary-electron inverse Compton, Bethe--Heitler secondary
 radiation, photomeson secondary radiation, aggregate gamma-gamma reprocessed
 radiation, proton synchrotron, neutral-pion decay, charged-pion synchrotron,
 and muon synchrotron. The first five freeze the final transport, target, SSA,
 and gamma-gamma transfer state rather than rerunning the cascade.
 
 Their exact base keys are `primary_electron_synchrotron`,
-`primary_electron_ssc`, `bethe_heitler_secondary_radiation`,
+`primary_electron_inverse_compton`, `bethe_heitler_secondary_radiation`,
 `photomeson_secondary_radiation`, `gamma_gamma_reprocessed_radiation`,
 `proton_synchrotron`, `neutral_pion_decay`, `charged_pion_synchrotron`, and
 `muon_synchrotron`. Each base receives blob-luminosity, intrinsic-observer
@@ -356,7 +354,10 @@ Mechanism-resolved aliases separately expose primary-electron inverse Compton
 and synchrotron/inverse-Compton pairs for Bethe--Heitler, photomeson, and
 gamma-gamma secondary populations. New documentation and plots use
 "Primary-electron inverse Compton" rather than calling that field pure SSC,
-because its converged seed field contains every enabled synchrotron source.
+because its internal IC uses the complete accepted internal photon density,
+with fixed external EC added separately once. `primary_electron_ssc` remains
+a true synchrotron-seeded diagnostic and is not included in the additive list.
+The historical `enable_ssc` switch controls full internal IC, not this subset.
 The transported-lepton aggregate groups remain compatibility views and are
 not additional terms in the nine-group source-resolved closure.
 

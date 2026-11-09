@@ -5,16 +5,22 @@ from scipy.integrate import trapezoid
 
 from helena.core.constants import (
     ELECTRON_REST_ENERGY_CGS as _MEC2_CGS,
+)
+from helena.core.constants import (
     SPEED_OF_LIGHT_CGS as _C_CGS,
+)
+from helena.core.constants import (
     THOMSON_CROSS_SECTION_CGS as _SIGMA_T_CGS,
 )
 from helena.core.contracts import (
     positive_scalar as _positive_scalar,
+)
+from helena.core.contracts import (
     real_1d as _real_1d,
 )
 from helena.core.photon_fields import transform_isotropic_external_photon_field
 
-__all__ = ["inverse_compton_sed", "external_inverse_compton_sed"]
+__all__ = ["external_inverse_compton_sed", "inverse_compton_sed"]
 
 
 def inverse_compton_sed(
@@ -36,8 +42,11 @@ def inverse_compton_sed(
     follows the scattered-energy order and is comoving ``E_s L_Es`` in
     erg s^-1.
 
-    The calculation uses the full angle-averaged Klein--Nishina kernel for
-    isotropic electrons and photons. A caller-supplied external field must
+    The Jones/Blumenthal--Gould kernel includes Klein--Nishina recoil for
+    isotropic ultrarelativistic leptons and predominantly upscattered photons
+    (gamma >> 1, seed energy << gamma m_e c^2). Its q support is not an
+    arbitrary-energy Compton redistribution kernel: cold-electron recoil,
+    downscattering and electron heating are not fully represented. A caller-supplied external field must
     already be angle-averaged, isotropic, and transformed to the blob frame;
     this is an angle-averaged EC approximation, not anisotropic EC. The caller
     is responsible for any host-to-blob bulk-Lorentz-factor transformation.

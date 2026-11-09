@@ -11,6 +11,8 @@ import jax.numpy as jnp
 import numpy as np
 
 from helena.core.jax_backend.chains.steady_state_hadronic_cascade import (
+    electromagnetic_ledger_passed_jax,
+    energy_weighted_spectral_defect_jax,
     outer_hadronic_picard_step,
 )
 from helena.core.propagation import apply_ebl_attenuation
@@ -31,7 +33,6 @@ from helena.parameters import DIFFERENTIABLE_PARAMETER_NAMES
 
 __all__ = ["FitResult", "SEDDataset", "fit"]
 
-_FITTING_OUTER_ROUNDS = 5
 _PARAMETER_FIELDS = MappingProxyType(
     dict(
         zip(
@@ -160,6 +161,14 @@ def _prepare_fit_request(model, dataset, parameters, optimizer):
 
 
 def _model_prediction(model, selection):
+    """Differentiate the bounded, convergence-frozen production Picard program.
+
+    The same core, outer tolerances and consecutive-pass rule as forward are
+    used. Failed inner/EM gates or exhausted outer iterations return NaNs.
+    Host-only particle/meson power audits remain forward diagnostics; these
+    are not duplicated in this JAX predictor. The derivative is of this finite
+    program, not implicit differentiation of an exact steady solution.
+    """
     setup = model._setup
     configuration = setup["production_configuration"]
     responses = model._get_prepared_responses()
@@ -169,18 +178,29 @@ def _model_prediction(model, selection):
     baseline = jnp.asarray(selection.baseline_values)
     initial = setup["initial_internal_photon_state_blob"]
     external = setup["fixed_external_photon_state_blob"]
+    strategy = setup["metadata"]["numerical_strategy"]
+    maximum = int(strategy["max_outer_iterations"])
+    outer_tolerance = float(strategy["outer_rtol"])
+    required_passes = int(strategy["required_consecutive_passes"])
+    if (
+        maximum < 2
+        or not np.isfinite(outer_tolerance)
+        or outer_tolerance <= 0
+        or required_passes < 1
+    ):
+        raise ValueError(
+            "outer loop requires at least two iterations and positive tolerances/pass count"
+        )
 
     def prediction(free_values):
         offsets = selection.unpack(free_values) - baseline
         dynamic = c513_configuration_from_log_offsets(configuration, offsets[:4])
         dynamic = c513_configuration_from_injection_shape_offsets(dynamic, offsets[4:])
 
-        def outer_round(density_state, _):
+        def active(previous):
             state = {
-                "low_energy_erg": initial["low_energy_erg"],
-                "low_density_cm3_erg": density_state["low_density_cm3_erg"],
-                "high_energy_erg": initial["high_energy_erg"],
-                "high_density_cm3_erg": density_state["high_density_cm3_erg"],
+                "energy_erg": initial["energy_erg"],
+                "density_cm3_erg": previous["density_cm3_erg"],
             }
             result = outer_hadronic_picard_step(
                 state,
@@ -190,26 +210,75 @@ def _model_prediction(model, selection):
                 gamma_gamma_pair_response=responses["gamma_gamma_pair_response"],
                 physics_only=True,
             )
-            _, escaped = _canonical_broadband_escaped_photon_sed(
-                configuration, result["inner_electromagnetic_cascade"]
-            )
+            inner = result["inner_electromagnetic_cascade"]
             following = result["next_internal_photon_state"]
+            proton = result["proton_density_dgamma_cm3"]
+            valid = (
+                previous["valid"]
+                & inner["converged"]
+                & electromagnetic_ledger_passed_jax(
+                    inner, dynamic.get("inner_relative_tolerance", 1e-4)
+                )
+                & jnp.all(jnp.isfinite(proton) & (proton >= 0))
+                & jnp.all(
+                    jnp.isfinite(following["density_cm3_erg"])
+                    & (following["density_cm3_erg"] >= 0)
+                )
+            )
+            defect = jnp.maximum(
+                energy_weighted_spectral_defect_jax(
+                    proton, previous["proton_density"], dynamic["proton_gamma"]
+                ),
+                energy_weighted_spectral_defect_jax(
+                    following["density_cm3_erg"],
+                    previous["density_cm3_erg"],
+                    following["energy_erg"],
+                ),
+            )
+            passes = jnp.where(
+                valid & (previous["iteration"] > 0) & (defect < outer_tolerance),
+                previous["passes"] + 1,
+                0,
+            )
+            _, escaped = _canonical_broadband_escaped_photon_sed(configuration, inner)
             return {
-                "low_density_cm3_erg": following["low_density_cm3_erg"],
-                "high_density_cm3_erg": following["high_density_cm3_erg"],
-            }, escaped
+                "density_cm3_erg": following["density_cm3_erg"],
+                "proton_density": proton,
+                "escaped": escaped,
+                "valid": valid,
+                "converged": valid & (passes >= required_passes),
+                "passes": passes,
+                "iteration": previous["iteration"] + 1,
+            }
 
-        _, escaped_history = jax.lax.scan(
+        def outer_round(previous, _):
+            following = jax.lax.cond(
+                previous["valid"] & ~previous["converged"],
+                active,
+                lambda state: state,
+                previous,
+            )
+            return following, None
+
+        final, _ = jax.lax.scan(
             outer_round,
             {
-                "low_density_cm3_erg": initial["low_density_cm3_erg"],
-                "high_density_cm3_erg": initial["high_density_cm3_erg"],
+                "density_cm3_erg": initial["density_cm3_erg"],
+                "proton_density": jnp.zeros_like(configuration["proton_gamma"]),
+                "escaped": jnp.zeros_like(initial["energy_erg"]),
+                "valid": jnp.asarray(True),
+                "converged": jnp.asarray(False),
+                "passes": jnp.asarray(0, dtype=jnp.int32),
+                "iteration": jnp.asarray(0, dtype=jnp.int32),
             },
             xs=None,
-            length=_FITTING_OUTER_ROUNDS,
+            length=maximum,
+        )
+        escaped = jnp.where(
+            final["valid"] & final["converged"], final["escaped"], jnp.nan
         )
         return apply_ebl_attenuation(
-            escaped_history[-1][jnp.asarray(earth_indices)]
+            escaped[jnp.asarray(earth_indices)]
             * jnp.asarray(flux_scale)[jnp.asarray(earth_indices)],
             jnp.asarray(transmission),
         )

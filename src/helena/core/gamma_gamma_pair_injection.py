@@ -89,7 +89,12 @@ def _isotropic_differential_pair_kernel(
     gamma_ray_energy_erg,
     target_photon_energy_erg,
 ):
-    """Return the isotropic response in cm^2 per daughter Lorentz factor."""
+    """Return cm^2 per daughter gamma, integrating its exact angular support.
+
+    The unchanged differential cross section is integrated with 128-point
+    Gauss--Legendre quadrature after a sin^2 map of the allowed invariant-s
+    interval. This resolves narrow daughter support near gamma=1.
+    """
     gamma = np.asarray(electron_gamma, dtype=float)
     target_energy = np.asarray(target_photon_energy_erg, dtype=float)
     x = np.asarray(gamma_ray_energy_erg, dtype=float) / _MEC2_CGS
@@ -101,22 +106,37 @@ def _isotropic_differential_pair_kernel(
             "gamma-ray and target-photon energy product exceeds float64 range"
         )
 
-    active = y > 1.0
-    y_safe = np.where(active, y, 1.0)
-    interval = y_safe - 1.0
-    s = 1.0 + interval[:, None] * _ANGLE_T[None, :]
+    # Daughter support requires 4 s^2 - 4 A s + (x+eta)^2 <= 0,
+    # A=1+gamma*(x+eta-gamma). Rationalize the smaller root to avoid
+    # subtracting nearly equal terms for hard/soft incident photons.
+    daughter = gamma[:, None]
+    total = x + eta[None, :]
+    a = 1.0 + daughter * (total - daughter)
+    discriminant = (daughter - 1.0) * (total - daughter - 1.0) * (a + total)
+    possible = (y[None, :] > 1.0) & (daughter > 1.0) & (total - daughter > 1.0)
+    possible = possible & (discriminant > 0.0)
+    root = np.sqrt(np.where(possible, discriminant, 1.0))
+    denominator = np.where(possible, a + root, 1.0)
+    lower = np.maximum(1.0, total**2 / (2.0 * denominator))
+    upper = np.minimum(y[None, :], denominator / 2.0)
+    active = possible & (upper > lower)
+    interval = np.where(active, upper - lower, 0.0)
+    # sin^2 maps both kinematic endpoints smoothly without altering support.
+    angle_t = np.asarray(_ANGLE_T, dtype=np.float64)
+    angle_weight = np.asarray(_ANGLE_WEIGHT, dtype=np.float64)
+    s = np.where(
+        active[:, :, None],
+        lower[:, :, None] + interval[:, :, None] * np.sin(np.pi * angle_t / 2.0) ** 2,
+        1.0,
+    )
+    jacobian = interval[:, :, None] * (np.pi / 2.0) * np.sin(np.pi * angle_t)
     differential = _differential_cross_section_dgamma(
-        gamma[:, None, None],
-        x,
-        eta[None, :, None],
-        s[None, :, :],
+        gamma[:, None, None], x, eta[None, :, None], s
     )
-    integral = np.sum(
-        _ANGLE_WEIGHT[None, None, :] * s[None, :, :] * differential,
-        axis=-1,
-    )
-    response = 2.0 * (interval / y_safe)[None, :] * integral / y_safe[None, :]
-    return np.where(active[None, :], response, 0.0)
+    integral = np.sum(angle_weight * s * differential * jacobian, axis=-1)
+    safe_y = np.where(y > 1.0, y, 1.0)
+    response = 2.0 * integral / safe_y[None, :] ** 2
+    return np.where(active, response, 0.0)
 
 
 def gamma_gamma_pair_injection(
@@ -157,9 +177,10 @@ def gamma_gamma_pair_injection(
     -----
     This is the full unpolarized differential QED result of Boettcher &
     Schlickeiser (1997), angle averaged for two labelled isotropic photon
-    populations with the same fixed 128-point convention as HELENA's total
-    gamma-gamma absorption. It retains both incident photon energies and is
-    exactly zero outside the pair threshold and daughter support. Log-energy
+    populations with fixed 128-point quadrature over the exact daughter
+    support after a sin^2 change of variable. Both incident photon energies are
+    retained, and it is exactly zero outside the pair threshold and daughter
+    support. Log-energy
     trapezoids are applied on the caller's primary and target grids.
 
     The primary input is a photon number density, not ``Q_gamma`` or a SED.

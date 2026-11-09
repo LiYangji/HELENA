@@ -1,6 +1,6 @@
-# HELENA Public API
+# HELENA v0.1.1 Public API
 
-The frozen v0.1 root namespace contains exactly seven names:
+The current root namespace retains the seven public names introduced in v0.1:
 
 ```python
 from helena import (
@@ -26,11 +26,14 @@ through the validated internal owner and exposes the sole complete public
 forward. Prepared responses, raw solver state, validation collectors, and
 scenario-specific internal names are not public.
 
-`ForwardResult.components` retains legacy high-energy and aggregate broadband
+`ForwardResult.components` exposes full-grid intrinsic and aggregate broadband
 fields while adding nine additive source-resolved photon groups. It also
 provides mechanism-resolved synchrotron and inverse-Compton fields for primary
 and secondary leptons. New usage should say **Primary-electron inverse
-Compton**; `primary_electron_ssc` remains only as a frozen compatibility key.
+Compton**. Its internal IC reads the complete accepted internal photon state;
+`primary_electron_ssc` is a synchrotron-seeded subset diagnostic and must not
+be added to total IC or the nine source-resolved groups. `enable_ssc` retains
+its spelling but now enables the complete internal IC process.
 
 ## Fitting, sensitivity, and local diagnostics
 
@@ -47,20 +50,21 @@ observations only; it is not a posterior or global uncertainty estimate.
 
 ## Cache boundary
 
-BH response tensors are private resources, never result fields or package
-data. The release lifecycle is `official validated cache -> helena cache fetch
--> platform-standard cache directory`, with optional `cache_dir=` and
-`HELENA_CACHE_DIR` overrides. `helena cache path`, `status`, and `fetch` manage
-the resource; all accept `--cache-dir`. Normal forwards only read compatible
-local entries and never download or rebuild them. The CLI implementation and
-validated file manifest are present; the official asset URL/archive checksum
-binding remains unpublished in this release candidate.
+BH and gamma-gamma response tensors are private resources, never result fields
+or package data. v0.1.1 prepares its exact internal/external responses explicitly
+with `helena cache fetch` or `helena cache build`. `helena cache path` and
+`status` report the selected directory and validate grid, physics, method and
+SHA256 identities; commands accept `--cache-dir`, and model calls accept
+`cache_dir=` or `HELENA_CACHE_DIR`. Normal forwards and fitting only load
+compatible local entries and never download or rebuild them. The unchanged
+historical v0.1.0 BH resource is available through `fetch --legacy`, but is
+incompatible with the current solver. See the root README for preparation.
 
 ## Contracts
 
-The authoritative current boundary is in
-[`public_api_spec.md`](public_api_spec.md) and
-[`P7B_freeze_contract.md`](P7B_freeze_contract.md). The P2--P6 files record the
+The current boundary is in [`public_api_spec.md`](public_api_spec.md).
+[`P7B_freeze_contract.md`](P7B_freeze_contract.md) records the historical v0.1
+freeze and must not override current numerical semantics. The P2--P6 files record the
 implemented contracts for runtime, model/forward, fitting, standalone physics,
 and sensitivity. Phase-local deferral language describes the state at that
-phase; later contracts and the frozen specification take precedence.
+phase; the current specification takes precedence.

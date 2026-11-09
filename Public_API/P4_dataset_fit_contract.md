@@ -78,11 +78,14 @@ converts it to the existing six natural-log and two additive reference
 coordinates. Users never supply C513 offsets. `ParameterSelection` packs the
 requested free values and reconstructs the canonical eight-vector; the two
 existing C513 mappers then apply changes to the input model configuration.
-Neither mapper nor the AD graph was changed.
+The mappers retain their physical coordinate definitions.
 
-The objective uses the already validated fixed-five-outer-round,
-`physics_only=True` fitting graph and simultaneous forward-mode scalar
-gradient. Static prepared Bethe--Heitler/gamma-gamma responses are obtained
+The objective uses the shared `physics_only=True` core in a bounded outer
+scan with photon/proton residuals, consecutive-pass convergence freezing, and
+explicit failure at the iteration limit. Derivatives describe that finite
+program, not an implicitly differentiated steady state. Host-only hadronic
+power audits remain part of `forward()`, outside the traced predictor. The
+objective uses simultaneous forward-mode scalar gradients. Static prepared Bethe--Heitler/gamma-gamma responses are obtained
 through the same model-owned lazy cache used by `forward()` and are reused for
 every evaluation. The production observer functions prepare the fixed Earth
 support, luminosity-to-flux scale, and stop-gradient EBL transmission outside

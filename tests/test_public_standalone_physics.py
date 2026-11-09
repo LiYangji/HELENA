@@ -460,8 +460,10 @@ def test_radiation_and_hadronic_facades_are_jit_ad_transparent():
 
 def test_em_cascade_facade_matches_selected_owner_outputs_exactly():
     electron_gamma = jnp.geomspace(1.000001, 1.0e5, 9)
-    synchrotron_energy = jnp.geomspace(1.0e-14, 1.0e-9, 4)
-    gamma_energy = jnp.geomspace(1.0e-9, 1.0e-4, 4)
+    # The production owner now requires one full source/target photon axis.
+    # Passing distinct legacy low/high axes is an explicit migration error.
+    synchrotron_energy = jnp.geomspace(1.0e-14, 1.0e-4, 7)
+    gamma_energy = synchrotron_energy
     proton_gamma = jnp.geomspace(1.01e2, 1.0e6, 3)
     external_energy = jnp.geomspace(1.0e-14, 1.0e-10, 3)
     electron_source = 1.0e-12 * jnp.exp(-((jnp.log(electron_gamma / 1.0e3) / 1.0) ** 2))

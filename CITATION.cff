@@ -2,9 +2,8 @@ cff-version: 1.2.0
 message: "Please cite the HELENA software version used in your work."
 type: software
 title: "HELENA: High-Energy Lepto-hadronic Emission and Neutrino Analysis"
-version: 0.1.0
-date-released: 2026-09-06
-doi: 10.5281/zenodo.22499660
+version: 0.1.1
+date-released: 2026-11-09
 authors:
   - family-names: Li
     given-names: Yangji

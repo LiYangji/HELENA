@@ -47,15 +47,23 @@ def solve_em(
 ):
     """Solve a steady electromagnetic cascade in one homogeneous blob.
 
-    Photon grids are blob-comoving erg; particle gamma is total/rest energy.
+    Photon grids are blob-comoving erg and must be identical full-support
+    arrays. Independent low/high inputs are rejected rather than silently
+    converted. Particle gamma is total/rest energy.
     Electron/positron sources are cm^-3 s^-1 per gamma, proton density is
     cm^-3 per gamma, and the prescribed gamma source is cm^-3 s^-1 erg^-1.
     The external target must already be blob-comoving ``dn_ph/dE`` in
     cm^-3 erg^-1. Field, radius, adiabatic/escape rates, and additional
     ``-d gamma/dt`` use G, cm, s^-1, s^-1, and s^-1.
 
-    The result contains final particle densities, intrinsic/escaped gamma
-    ``E L_E`` in erg s^-1, diameter optical depth, and compact convergence
+    ``enable_synchrotron_self_compton`` is the retained compatibility input
+    for internal IC emission and cooling on the complete internal density.
+    It is not a synchrotron-only seed selection. The external-IC switch still
+    controls a separate fixed reservoir.
+
+    The result contains final particle densities and total intrinsic/escaped
+    photon ``E L_E`` on that full grid (historical field names contain gamma),
+    in erg s^-1, diameter gamma-gamma optical depth, and compact convergence
     facts. Fixed-grid pair responses are prepared internally on the host;
     their tensors, Picard state, relaxation, and ledgers are not public.
     """

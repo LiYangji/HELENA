@@ -136,17 +136,21 @@ def test_fit_uses_canonical_broadband_support_around_electron_synchrotron_peak(
         amplitude = jnp.sum(dynamic["primary_electron_injection_dgamma_cm3_s"])
         return {
             "next_internal_photon_state": state,
+            "proton_density_dgamma_cm3": jnp.ones_like(dynamic["proton_gamma"]),
             "inner_electromagnetic_cascade": {
-                "total_low_energy_photon_escaped_sed_erg_s": (
-                    amplitude
-                    * jnp.ones_like(dynamic["synchrotron_photon_energy_erg"])
-                ),
-                "escaped_gamma_sed_erg_s": amplitude
+                "converged": jnp.asarray(True),
+                "photon_energy_erg": dynamic["gamma_ray_energy_erg"],
+                "escaped_photon_sed_erg_s": amplitude
                 * jnp.ones_like(dynamic["gamma_ray_energy_erg"]),
             },
         }
 
     monkeypatch.setattr(public_fitting, "outer_hadronic_picard_step", outer_step)
+    monkeypatch.setattr(
+        public_fitting,
+        "electromagnetic_ledger_passed_jax",
+        lambda *_: jnp.asarray(True),
+    )
 
     frequency_hz = 1.33e17
     energy_erg = np.asarray([6.62607015e-27 * frequency_hz])
@@ -179,15 +183,13 @@ def test_fit_uses_canonical_broadband_support_around_electron_synchrotron_peak(
         doppler_factor=config.doppler_factor,
         redshift=config.redshift,
     )
-    split_blob = float(
-        model._setup["production_configuration"]["synchrotron_split_energy_erg"]
+    # The full common grid still includes the synchrotron peak below the old
+    # native gamma-grid minimum; no low/high or 1 MeV output selection remains.
+    old_gamma_min_observer = (
+        1.0e2 * 1.602176634e-12 * config.doppler_factor / (1.0 + config.redshift)
     )
-    assert model_energy[0] < energy_erg[0] < high_energy_observer[0]
-    expected_high_energy = high_energy_observer[high_energy > split_blob]
-    np.testing.assert_array_equal(
-        model_energy[-expected_high_energy.size :],
-        expected_high_energy,
-    )
+    assert model_energy[0] < energy_erg[0] < old_gamma_min_observer
+    np.testing.assert_array_equal(model_energy, high_energy_observer)
 
     coordinates = selection.pack(selection.baseline_values)
     truth_flux = float(np.asarray(prediction(jnp.asarray(coordinates)))[0])

@@ -139,7 +139,7 @@ def benchmark_cases():
 
 
 def configured_cache_dir():
-    """Return only the explicit cache override until cache fetch is implemented."""
+    """Return the explicit cache override; otherwise use the runtime default."""
     configured = os.environ.get("HELENA_CACHE_DIR")
     return Path(configured).expanduser() if configured else None
 

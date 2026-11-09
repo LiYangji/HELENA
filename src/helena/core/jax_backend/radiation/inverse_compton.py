@@ -6,11 +6,17 @@ import numpy as np
 
 from helena.core.constants import (
     ELECTRON_REST_ENERGY_CGS as _MEC2_CGS,
+)
+from helena.core.constants import (
     SPEED_OF_LIGHT_CGS as _C_CGS,
+)
+from helena.core.constants import (
     THOMSON_CROSS_SECTION_CGS as _SIGMA_T_CGS,
 )
 from helena.core.contracts import (
     positive_scalar as _positive_scalar,
+)
+from helena.core.contracts import (
     real_1d as _real_1d,
 )
 from helena.core.jax_backend.radiation.synchrotron import _contains_tracer
@@ -93,12 +99,14 @@ def inverse_compton_sed_jax(
     homogeneous-sphere radius in cm.
 
     The float64 output follows the scattered-energy order. It preserves the
-    NumPy reference's full angle-averaged differential Klein--Nishina kernel,
+    NumPy reference's ultrarelativistic Jones/BG differential KN kernel,
     kinematic mask, sphere volume, and trapezoidal integration first in
     ``ln(E_seed / m_e c^2)`` and then in ``ln(gamma)``. Eager calls validate
     inputs; JIT-traced calls require valid fixed-shape inputs. No cooling,
     transport, SSC feedback, anisotropic emission, observer transform,
-    gamma-gamma interaction, or cascade is included.
+    gamma-gamma interaction, or cascade is included. The ultrarelativistic,
+    predominantly upscattering assumptions of that reference apply; this is
+    not a complete hard-photon/cold-electron Compton redistribution kernel.
     """
     if not jax.config.jax_enable_x64:
         raise RuntimeError("JAX inverse-Compton radiation requires jax_enable_x64")

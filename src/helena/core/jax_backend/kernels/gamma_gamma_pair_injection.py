@@ -27,6 +27,7 @@ __all__ = [
 ]
 
 _PAIR_RESPONSE_CONFIGURATION = (
+    "daughter-support-sin2-128-v1",
     _C_CGS,
     _MEC2_CGS,
     _SIGMA_T_CGS,
@@ -82,30 +83,48 @@ def _isotropic_differential_pair_kernel_jax(
     gamma_ray_energy_erg,
     target_photon_energy_erg,
 ):
-    """Return the isotropic response in cm^2 per daughter Lorentz factor."""
+    """Return cm^2 per daughter gamma, integrating its exact angular support.
+
+    The unchanged differential cross section is integrated with 128-point
+    Gauss--Legendre quadrature after a sin^2 map of the allowed invariant-s
+    interval. This resolves narrow daughter support near gamma=1.
+    """
     gamma = jnp.asarray(electron_gamma, dtype=jnp.float64)
     target_energy = jnp.asarray(target_photon_energy_erg, dtype=jnp.float64)
     x = jnp.asarray(gamma_ray_energy_erg, dtype=jnp.float64) / _MEC2_CGS
     eta = target_energy / _MEC2_CGS
     y = x * eta
-    active = y > 1.0
-    safe_y = jnp.where(active, y, 1.0)
-    interval = safe_y - 1.0
+    # Daughter support requires 4 s^2 - 4 A s + (x+eta)^2 <= 0,
+    # A=1+gamma*(x+eta-gamma). Rationalize the smaller root to avoid
+    # subtracting nearly equal terms for hard/soft incident photons.
+    daughter = gamma[:, None]
+    total = x + eta[None, :]
+    a = 1.0 + daughter * (total - daughter)
+    discriminant = (daughter - 1.0) * (total - daughter - 1.0) * (a + total)
+    possible = (y[None, :] > 1.0) & (daughter > 1.0) & (total - daughter > 1.0)
+    possible = possible & (discriminant > 0.0)
+    root = jnp.sqrt(jnp.where(possible, discriminant, 1.0))
+    denominator = jnp.where(possible, a + root, 1.0)
+    lower = jnp.maximum(1.0, total**2 / (2.0 * denominator))
+    upper = jnp.minimum(y[None, :], denominator / 2.0)
+    active = possible & (upper > lower)
+    interval = jnp.where(active, upper - lower, 0.0)
+    # sin^2 maps both kinematic endpoints smoothly without altering support.
     angle_t = jnp.asarray(_ANGLE_T, dtype=jnp.float64)
     angle_weight = jnp.asarray(_ANGLE_WEIGHT, dtype=jnp.float64)
-    s = 1.0 + interval[:, None] * angle_t[None, :]
+    s = jnp.where(
+        active[:, :, None],
+        lower[:, :, None] + interval[:, :, None] * jnp.sin(jnp.pi * angle_t / 2.0) ** 2,
+        1.0,
+    )
+    jacobian = interval[:, :, None] * (jnp.pi / 2.0) * jnp.sin(jnp.pi * angle_t)
     differential = _differential_cross_section_dgamma_jax(
-        gamma[:, None, None],
-        x,
-        eta[None, :, None],
-        s[None, :, :],
+        gamma[:, None, None], x, eta[None, :, None], s
     )
-    integral = jnp.sum(
-        angle_weight[None, None, :] * s[None, :, :] * differential,
-        axis=-1,
-    )
-    response = 2.0 * (interval / safe_y)[None, :] * integral / safe_y[None, :]
-    return jnp.where(active[None, :], response, 0.0)
+    integral = jnp.sum(angle_weight * s * differential * jacobian, axis=-1)
+    safe_y = jnp.where(y > 1.0, y, 1.0)
+    response = 2.0 * integral / safe_y[None, :] ** 2
+    return jnp.where(active, response, 0.0)
 
 
 def _pair_injection_kernel(
@@ -243,7 +262,7 @@ def prepare_gamma_gamma_pair_response_jax(
     than one, strictly increasing high-energy photon energies in erg, and
     strictly increasing target-photon energies in erg. The float64 result has
     shape ``(n_daughter, n_gamma_ray, n_target)`` and units
-    cm^3 erg^2 s^-1 per daughter Lorentz factor. It contains the unchanged
+    cm^3 erg^2 s^-1 per daughter Lorentz factor. It contains the support-mapped
     128-point angular response, speed-of-light prefactor, and both caller-grid
     logarithmic trapezoid weights. Dynamic photon densities are excluded.
 
@@ -312,7 +331,7 @@ def gamma_gamma_pair_injection_jax(
     The float64 return order is ``(Q_positron, Q_electron)`` in cm^-3 s^-1 per
     unit daughter Lorentz factor. It directly mirrors the NumPy reference's
     full unpolarized Boettcher--Schlickeiser differential QED kernel, exact
-    threshold and daughter support, fixed 128-point isotropic angular average,
+    threshold and daughter support, support-mapped 128-point angular average,
     and caller-grid log-energy trapezoids.
 
     Eager calls validate inputs, prepare/cache the fixed response when omitted,

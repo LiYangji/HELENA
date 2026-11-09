@@ -6,8 +6,14 @@ import numpy as np
 
 from helena.core.constants import (
     ELECTRON_REST_ENERGY_CGS as _MEC2_CGS,
+)
+from helena.core.constants import (
     INVERSE_COMPTON_SMALL_X_THRESHOLD as _SMALL_X_THRESHOLD,
+)
+from helena.core.constants import (
     SPEED_OF_LIGHT_CGS as _C_CGS,
+)
+from helena.core.constants import (
     THOMSON_CROSS_SECTION_CGS as _SIGMA_T_CGS,
 )
 from helena.core.contracts import real_1d as _real_1d
@@ -82,8 +88,8 @@ def _inverse_compton_loss_kernel(
     x = 4.0 * gamma[:, None] * photon_energy[None, :] / _MEC2_CGS
     suppression = _klein_nishina_loss_suppression_jax(x)
     energy_density = jnp.trapezoid(
-        photon_energy[None, :] * photon_density[None, :] * suppression,
-        x=photon_energy,
+        photon_energy[None, :] ** 2 * photon_density[None, :] * suppression,
+        x=jnp.log(photon_energy),
         axis=1,
     )
     return 4.0 * _SIGMA_T_CGS * _C_CGS / (3.0 * _MEC2_CGS) * gamma**2 * energy_density
@@ -103,11 +109,13 @@ def electron_inverse_compton_loss_rate_dgamma_s_jax(
     cm^-3 erg^-1. The float64 output follows the electron order and is the
     continuous loss ``b_IC`` in s^-1.
 
-    The implementation matches the NumPy reference's full analytic isotropic
-    Klein--Nishina suppression, small-argument branch, constants, and direct
-    photon-energy trapezoid. Eager calls validate values; JIT-traced calls
+    The implementation matches the NumPy reference's analytic ultrarelativistic
+    isotropic Klein--Nishina suppression, small-argument branch, constants, and direct
+    log-photon-energy trapezoid with E^2 n(E). Eager calls validate values; JIT-traced calls
     require valid fixed-shape inputs. It performs no interpolation, transport,
-    radiation calculation, feedback, or cascade.
+    radiation calculation, feedback, or cascade. The reference assumes inverse
+    upscattering, not signed general Compton heating/cooling at arbitrary
+    electron and seed photon energies.
     """
     if not jax.config.jax_enable_x64:
         raise RuntimeError("JAX inverse-Compton cooling requires jax_enable_x64")

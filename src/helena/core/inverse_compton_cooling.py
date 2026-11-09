@@ -6,8 +6,14 @@ from scipy.special import spence
 
 from helena.core.constants import (
     ELECTRON_REST_ENERGY_CGS as _MEC2_CGS,
+)
+from helena.core.constants import (
     INVERSE_COMPTON_SMALL_X_THRESHOLD as _SMALL_X_THRESHOLD,
+)
+from helena.core.constants import (
     SPEED_OF_LIGHT_CGS as _C_CGS,
+)
+from helena.core.constants import (
     THOMSON_CROSS_SECTION_CGS as _SIGMA_T_CGS,
 )
 from helena.core.contracts import real_1d as _real_1d
@@ -16,7 +22,7 @@ __all__ = ["electron_inverse_compton_loss_rate_dgamma_s"]
 
 
 def _klein_nishina_loss_suppression(x):
-    """Return the exact isotropic Klein--Nishina energy-loss suppression."""
+    """Return the analytic ultrarelativistic isotropic KN loss suppression."""
     x = np.asarray(x, dtype=np.float64)
     if not np.all(np.isfinite(x)) or np.any(x < 0.0):
         raise ValueError("x must contain only finite non-negative values")
@@ -74,9 +80,12 @@ def electron_inverse_compton_loss_rate_dgamma_s(
 
     Notes
     -----
-    The calculation uses the full analytic isotropic Klein--Nishina loss
-    suppression and trapezoidal integration over the supplied photon-energy
-    grid. It performs no interpolation or resampling. The target field must
+    The analytic Moderski et al. (2005), Appendix A, KN suppression assumes
+    ultrarelativistic inverse-Compton upscattering. It is not a signed
+    arbitrary-energy Compton heating/cooling operator; gamma > 1 validation
+    alone does not establish this approximation's physical accuracy.
+    Integration uses dln(E) with E^2 n(E), consistent with the radiation
+    quadrature on logarithmic photon grids; no interpolation is introduced. It performs no interpolation or resampling. The target field must
     already be isotropic and transformed to the blob frame. No anisotropy,
     electron redistribution, radiation spectrum, transport, or feedback is
     included.
@@ -112,8 +121,8 @@ def electron_inverse_compton_loss_rate_dgamma_s(
     suppression = _klein_nishina_loss_suppression(x)
     with np.errstate(over="ignore", invalid="ignore"):
         energy_density = trapezoid(
-            photon_energy[None, :] * photon_density[None, :] * suppression,
-            x=photon_energy,
+            photon_energy[None, :] ** 2 * photon_density[None, :] * suppression,
+            x=np.log(photon_energy),
             axis=1,
         )
         result = (
