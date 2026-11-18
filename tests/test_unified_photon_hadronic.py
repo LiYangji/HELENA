@@ -144,7 +144,7 @@ def test_actual_pp_and_meson_photons_enter_the_common_em_state(record_property):
     import jax
 
     from helena.core.jax_backend.chains.gamma_gamma_pair_source import (
-        prepare_gamma_gamma_total_field_response_jax,
+        _prepare_cascade_gamma_gamma_response,
     )
 
     photon = np.geomspace(1.0e-14, 3.0e2, 15)
@@ -157,7 +157,7 @@ def test_actual_pp_and_meson_photons_enter_the_common_em_state(record_property):
         "energy_erg": external_energy,
         "density_cm3_erg": np.zeros_like(external_energy),
     }
-    response = prepare_gamma_gamma_total_field_response_jax(photon, electron)
+    response = _prepare_cascade_gamma_gamma_response(photon, electron)
     configuration = {
         "synchrotron_photon_energy_erg": photon,
         "gamma_ray_energy_erg": photon,

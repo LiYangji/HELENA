@@ -317,6 +317,18 @@ def test_unbound_current_fetch_does_not_install_legacy_grid(
     assert not destination.exists()
 
 
+def test_published_pointwise_assets_cannot_populate_development_response(
+    tmp_path, monkeypatch, capsys
+):
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("unreleased cascade attempted to download legacy tensors")
+
+    monkeypatch.setattr(cache_module.urllib.request, "urlopen", forbidden)
+    assert cli.main(["cache", "fetch", "--cache-dir", str(tmp_path)]) == 1
+    assert "no published resource" in capsys.readouterr().err
+    assert not any(tmp_path.iterdir())
+
+
 def test_current_cli_real_small_build_and_strict_reload(tmp_path, monkeypatch, capsys):
     daughter = np.geomspace(1.1, 1e7, 5)
     proton = np.geomspace(1.1, 1e8, 4)
@@ -372,7 +384,7 @@ def test_current_cache_rejects_legacy_only_directory(tmp_path, monkeypatch, caps
 
 
 def test_gamma_gamma_strict_cache_roundtrip_and_identity(tmp_path, monkeypatch):
-    from helena.core.jax_backend.kernels import gamma_gamma_pair_injection as pair
+    from helena.core.jax_backend.kernels import gamma_gamma_cascade_response as pair
 
     photon = np.geomspace(2e-7, 3e-4, 5)
     daughter = np.geomspace(1.000001, 1000, 9)
@@ -382,6 +394,7 @@ def test_gamma_gamma_strict_cache_roundtrip_and_identity(tmp_path, monkeypatch):
         with pytest.raises(cache_module.GammaGammaResponseCacheMiss):
             load(photon, daughter, external, cache_dir=tmp_path)
         built = load(photon, daughter, external, cache_dir=tmp_path, allow_build=True)
+        assert pair.CASCADE_PAIR_METHOD in built
         assert np.any(np.asarray(built["pair_response"]) > 0)
         loaded = load(photon, daughter, external, cache_dir=tmp_path)
         for key in built:
@@ -393,7 +406,11 @@ def test_gamma_gamma_strict_cache_roundtrip_and_identity(tmp_path, monkeypatch):
     def forbidden(*_args, **_kwargs):
         raise AssertionError("normal cache access must not build or download")
 
-    monkeypatch.setattr(pair, "prepare_gamma_gamma_pair_response_jax", forbidden)
+    from helena.core.jax_backend.chains import gamma_gamma_pair_source
+
+    monkeypatch.setattr(
+        gamma_gamma_pair_source, "_prepare_cascade_gamma_gamma_response", forbidden
+    )
     monkeypatch.setattr(cache_module.urllib.request, "urlopen", forbidden)
     load(photon, daughter, cache_dir=tmp_path)
     with pytest.raises(cache_module.GammaGammaResponseCacheMiss):

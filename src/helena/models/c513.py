@@ -10,6 +10,7 @@ import numpy as np
 from scipy.integrate import quad
 
 from helena.core.gamma_gamma import _MEC2_CGS
+from helena.core.jax_backend.chains.gamma_gamma_pair_source import _cascade_pair_grid
 from helena.core.jax_backend.chains.steady_state_hadronic_cascade import (
     _target_components,
     solve_steady_state_hadronic_cascade,
@@ -600,6 +601,8 @@ def prepare_c513_responses(setup, *, cache_dir, allow_build=False):
     pair_gamma = configuration.get("pair_daughter_gamma")
     if pair_gamma is None:
         pair_gamma = configuration["electron_gamma"]
+    else:
+        pair_gamma = _cascade_pair_grid(pair_gamma, configuration["electron_gamma"])
     gamma_gamma_response = load_or_prepare_gamma_gamma_response_jax(
         configuration["gamma_ray_energy_erg"],
         pair_gamma,
@@ -614,12 +617,7 @@ def prepare_c513_responses(setup, *, cache_dir, allow_build=False):
             cache_dir=cache_dir,
             allow_build=allow_build,
         )
-        gamma_gamma_response["external_target_photon_energy_erg"] = external_response[
-            "target_photon_energy_erg"
-        ]
-        gamma_gamma_response["external_pair_response"] = external_response[
-            "pair_response"
-        ]
+        gamma_gamma_response["external_pair_response"] = external_response
     return {
         "bethe_heitler_pair_responses": responses,
         "bethe_heitler_response_fingerprints": fingerprints,

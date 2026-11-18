@@ -596,6 +596,7 @@ class GammaGammaResponseCacheInvalid(BetheHeitlerResponseCacheInvalid):
 def _gamma_gamma_compatibility(photon_energy_erg, lepton_gamma, target_energy_erg=None):
     from helena.core.jax_backend.chains import gamma_gamma_pair_source as total
     from helena.core.jax_backend.kernels import gamma_gamma_absorption as absorption
+    from helena.core.jax_backend.kernels import gamma_gamma_cascade_response as cascade
     from helena.core.jax_backend.kernels import gamma_gamma_pair_injection as pair
 
     inputs = {"photon_energy_erg": photon_energy_erg, "lepton_gamma": lepton_gamma}
@@ -610,10 +611,11 @@ def _gamma_gamma_compatibility(photon_energy_erg, lepton_gamma, target_energy_er
         arrays[name], identities[name] = a, identity
     physics = {
         "method": "Bottcher_Schlickeiser_1997_Breit_Wheeler",
+        "daughter_discretization": cascade.CASCADE_PAIR_METHOD,
         "configuration": json.loads(json.dumps(pair._PAIR_RESPONSE_CONFIGURATION)),
         "module_sha256": {
             module.__name__: _file_sha256(Path(module.__file__))
-            for module in (pair, absorption, total)
+            for module in (pair, absorption, total, cascade)
         },
         "float_precision": "float64",
         "layout": "daughter,photon,target",
@@ -687,8 +689,8 @@ def _load_gamma_gamma(directory, fingerprint, compatibility, axes):
     archive, metadata_path = _gamma_gamma_paths(directory, fingerprint)
     if not archive.is_file() or not metadata_path.is_file():
         raise GammaGammaResponseCacheMiss(
-            f"gamma-gamma response cache miss for {fingerprint}; run 'helena cache fetch' "
-            "or explicitly 'helena cache build' with the same cache directory"
+            f"gamma-gamma response cache miss for {fingerprint}; "
+            "run 'helena cache build' with the same cache directory"
         )
     try:
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
@@ -713,7 +715,9 @@ def _load_gamma_gamma(directory, fingerprint, compatibility, axes):
         raise GammaGammaResponseCacheInvalid(
             f"unreadable gamma-gamma cache: {error}"
         ) from error
-    return {name: jnp.asarray(a) for name, a in response.items()}
+    prepared = {name: jnp.asarray(a) for name, a in response.items()}
+    prepared[compatibility["physics"]["daughter_discretization"]] = ()
+    return prepared
 
 
 def _atomic_save_gamma_gamma(directory, fingerprint, compatibility, response):
@@ -764,23 +768,15 @@ def load_or_prepare_gamma_gamma_response_jax(
         if not allow_build:
             raise
     from helena.core.jax_backend.chains.gamma_gamma_pair_source import (
-        prepare_gamma_gamma_total_field_response_jax,
-    )
-    from helena.core.jax_backend.kernels.gamma_gamma_pair_injection import (
-        prepare_gamma_gamma_pair_response_jax,
+        _prepare_cascade_gamma_gamma_response,
     )
 
-    if target_energy_erg is None:
-        response = prepare_gamma_gamma_total_field_response_jax(
-            photon_energy_erg, lepton_gamma
-        )
-    else:
-        response = {
-            **axes,
-            "pair_response": prepare_gamma_gamma_pair_response_jax(
-                lepton_gamma, photon_energy_erg, target_energy_erg
-            ),
-        }
+    response = _prepare_cascade_gamma_gamma_response(
+        photon_energy_erg, lepton_gamma, target_energy_erg
+    )
+    # The method is persisted in the fingerprinted compatibility metadata. The loader
+    # restores its static pytree tag only after validating the payload.
+    response.pop(compatibility["physics"]["daughter_discretization"])
     arrays = {name: np.asarray(a) for name, a in response.items()}
     _validate_gamma_gamma_payload(arrays, axes)
     _atomic_save_gamma_gamma(directory, fingerprint, compatibility, arrays)
@@ -832,6 +828,21 @@ def fetch_current_c513_response_cache(cache_dir=None):
         raise BetheHeitlerCacheResourceUnavailable(
             "v0.1.1 cache resources are not yet bound; use 'helena cache build'"
         )
+    # The released v0.1.1 files are immutable. A developer build with a new
+    # collision discretization cannot fetch those tensors as a current response.
+    for grids in _current_c513_gamma_gamma_grids().values():
+        fingerprint = gamma_gamma_response_fingerprint(*grids)
+        if any(
+            path.name not in files
+            for path in _gamma_gamma_paths(directory, fingerprint)
+        ):
+            try:
+                return prepare_current_c513_response_cache(directory)
+            except BetheHeitlerResponseCacheMiss as error:
+                raise BetheHeitlerCacheResourceUnavailable(
+                    "the current gamma-gamma response has no published resource; "
+                    "use 'helena cache build' in the existing cache directory"
+                ) from error
     directory.parent.mkdir(parents=True, exist_ok=True)
     with TemporaryDirectory(dir=directory.parent, prefix=".helena-fetch-") as temporary:
         staged = Path(temporary)

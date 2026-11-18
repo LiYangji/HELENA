@@ -15,7 +15,7 @@ import pytest
 
 from helena.core.constants import ELECTRON_REST_ENERGY_CGS as MEC2
 from helena.core.jax_backend.chains.gamma_gamma_pair_source import (
-    prepare_gamma_gamma_total_field_response_jax,
+    _prepare_cascade_gamma_gamma_response,
 )
 from helena.core.jax_backend.kernels.inverse_compton_cooling import (
     electron_inverse_compton_loss_rate_dgamma_s_jax,
@@ -60,7 +60,7 @@ def small_problem():
         external,
         np.zeros_like(external),
     )
-    response = prepare_gamma_gamma_total_field_response_jax(energy, gamma)
+    response = _prepare_cascade_gamma_gamma_response(energy, gamma)
     frozen = 1e19 * np.exp(-np.log(energy / (1e-7 * MEC2)) ** 2)
     return args, response, frozen
 
