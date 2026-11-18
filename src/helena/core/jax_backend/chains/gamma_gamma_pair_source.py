@@ -14,6 +14,10 @@ from helena.core.contracts import real_1d as _real_1d
 from helena.core.jax_backend.kernels.gamma_gamma_absorption import (
     _angle_averaged_cross_section_jax,
 )
+from helena.core.jax_backend.kernels.gamma_gamma_cascade_response import (
+    CASCADE_PAIR_METHOD,
+    prepare_cascade_pair_response_jax,
+)
 from helena.core.jax_backend.kernels.gamma_gamma_pair_injection import (
     _contract_pair_response,
     _trapezoid_weights,
@@ -118,6 +122,47 @@ def prepare_gamma_gamma_total_field_response_jax(
         "lower_support_mask": jnp.asarray(lower_mask),
         "upper_support_mask": jnp.asarray(upper_mask),
     }
+
+
+def _cascade_pair_grid(daughter, transport):
+    """Common knots allow a single collision integral to feed both grids."""
+    daughter, transport = np.asarray(daughter), np.asarray(transport)
+    for grid in (daughter, transport):
+        if (
+            grid.dtype != np.float64
+            or grid.ndim != 1
+            or grid.size < 2
+            or not np.all(np.isfinite(grid))
+            or grid[0] <= 1.0
+            or np.any(np.diff(grid) <= 0.0)
+        ):
+            raise ValueError(
+                "cascade pair grids must be increasing finite float64 above 1"
+            )
+    if daughter[0] != transport[0] or daughter[-1] != transport[-1]:
+        raise ValueError("daughter and electron transport grids must share endpoints")
+    return np.union1d(daughter, transport)
+
+
+def _prepare_cascade_gamma_gamma_response(photon, daughter, target=None):
+    """Prepare one versioned, interval-integrated collision response for transport."""
+    tensor = prepare_cascade_pair_response_jax(
+        daughter, photon, photon if target is None else target
+    )
+    if target is None:
+        response = prepare_gamma_gamma_total_field_response_jax(
+            photon, daughter, pair_response=tensor
+        )
+    else:
+        response = {
+            "photon_energy_erg": jnp.asarray(photon),
+            "target_photon_energy_erg": jnp.asarray(target),
+            "lepton_gamma": jnp.asarray(daughter),
+            "pair_response": tensor,
+        }
+    # Dict keys form part of the static pytree definition, including under JIT.
+    response[CASCADE_PAIR_METHOD] = ()
+    return response
 
 
 def gamma_gamma_total_field_jax(dn_photon_denergy_cm3_erg, response):

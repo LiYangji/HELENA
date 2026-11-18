@@ -22,8 +22,9 @@ from helena.core.constants import (
     SPEED_OF_LIGHT_CGS as _C_CGS,
 )
 from helena.core.jax_backend.chains.gamma_gamma_pair_source import (
+    _cascade_pair_grid,
+    _prepare_cascade_gamma_gamma_response,
     gamma_gamma_total_field_jax,
-    prepare_gamma_gamma_total_field_response_jax,
 )
 from helena.core.jax_backend.chains.total_lepton_transport import (
     total_lepton_transport_chain_jax,
@@ -32,9 +33,11 @@ from helena.core.jax_backend.kernels.gamma_gamma_absorption import (
     _angle_averaged_cross_section_jax,
     _contains_tracer,
 )
+from helena.core.jax_backend.kernels.gamma_gamma_cascade_response import (
+    CASCADE_PAIR_METHOD,
+)
 from helena.core.jax_backend.kernels.gamma_gamma_pair_injection import (
     _contract_pair_response,
-    prepare_gamma_gamma_pair_response_jax,
 )
 from helena.core.jax_backend.kernels.inverse_compton_cooling import (
     electron_inverse_compton_loss_rate_dgamma_s_jax,
@@ -123,42 +126,48 @@ def _validated_pair_daughter_gamma(pair_daughter_gamma, electron_gamma):
     return daughter
 
 
-def _pair_grids_are_identical(pair_daughter_gamma, electron_gamma):
-    if pair_daughter_gamma.shape != electron_gamma.shape:
-        return False
-    if pair_daughter_gamma is electron_gamma:
-        return True
-    if _contains_tracer((pair_daughter_gamma, electron_gamma)):
-        return False
-    return np.array_equal(pair_daughter_gamma, electron_gamma)
+def _transport_cell_widths(gamma):
+    """Geometric-face widths used on the lepton finite-volume right-hand side."""
+    faces = jnp.sqrt(gamma[:-1]) * jnp.sqrt(gamma[1:])
+    return jnp.diff(
+        jnp.concatenate(
+            (
+                gamma[:1] * (gamma[:1] / faces[:1]),
+                faces,
+                gamma[-1:] * (gamma[-1:] / faces[-1:]),
+            )
+        )
+    )
 
 
 def _pair_source_remap_operator_jax(pair_daughter_gamma, transport_gamma):
-    """Precompute a piecewise-constant dual-cell overlap operator."""
-    source = jnp.asarray(pair_daughter_gamma, dtype=jnp.float64)
-    target = jnp.asarray(transport_gamma, dtype=jnp.float64)
-    source_faces = jnp.concatenate(
-        (source[:1], (source[:-1] + source[1:]) / 2.0, source[-1:])
+    """Project nodal particle counts to adjacent transport centres, then per FV width."""
+    source = jnp.asarray(pair_daughter_gamma)
+    target = jnp.asarray(transport_gamma)
+    right = jnp.clip(jnp.searchsorted(target, source, side="right"), 1, target.size - 1)
+    left = right - 1
+    # Use the distance to each opposite node, avoiding 1-f cancellation.
+    interval = target[right] - target[left]
+    columns = jnp.arange(source.size)
+    count_weights = _trapezoid_weights(source)
+    operator = jnp.zeros((target.size, source.size), dtype=jnp.float64)
+    operator = operator.at[left, columns].set(
+        count_weights * ((target[right] - source) / interval)
     )
-    target_faces = jnp.concatenate(
-        (target[:1], (target[:-1] + target[1:]) / 2.0, target[-1:])
+    operator = operator.at[right, columns].add(
+        count_weights * ((source - target[left]) / interval)
     )
-    overlap = jnp.maximum(
-        0.0,
-        jnp.minimum(target_faces[1:, None], source_faces[None, 1:])
-        - jnp.maximum(target_faces[:-1, None], source_faces[None, :-1]),
-    )
-    return overlap / _trapezoid_weights(target)[:, None]
+    return operator / _transport_cell_widths(target)[:, None]
 
 
 def _conservative_pair_source_remap_jax(pair_source_dgamma, operator):
-    """Apply a fixed number-conserving dual-cell overlap operator."""
-    source = jnp.asarray(pair_source_dgamma, dtype=jnp.float64)
-    return operator @ source
+    """Convert projected daughter density to the finite-volume transport source."""
+    return operator @ pair_source_dgamma
 
 
-def _pair_source_moments(pair_source_dgamma, gamma):
-    weights = _trapezoid_weights(gamma)
+def _pair_source_moments(pair_source_dgamma, gamma, weights=None):
+    if weights is None:
+        weights = _trapezoid_weights(gamma)
     source = jnp.asarray(pair_source_dgamma, dtype=jnp.float64)
     coordinate = jnp.asarray(gamma, dtype=jnp.float64)
     return jnp.sum(weights * source), jnp.sum(weights * coordinate * source)
@@ -245,6 +254,9 @@ def steady_state_electromagnetic_cascade_jax(
 
     Internal gamma-gamma uses the same accepted n on BOTH sides; prescribed
     external targets are a separate nondepleting reservoir, without a half.
+    High-resolution Q is a bin-integrated projection on the union of requested
+    daughter and transport knots (returned as pair_daughter_gamma). The transport
+    Q is per geometric finite-volume width.
     Photon and particle raw map defects control freezing. At an exhausted
     iteration limit converged=False and iteration_limit_reached=True; callers
     must reject that result. This is finite-program AD, not implicit steady AD.
@@ -278,35 +290,32 @@ def steady_state_electromagnetic_cascade_jax(
         raise ValueError("EM requires identical full photon-grid shapes")
     energy = jnp.asarray(gamma_ray_energy_erg, dtype=jnp.float64)
     gamma = jnp.asarray(electron_gamma, dtype=jnp.float64)
-    daughter = (
+    requested = (
         gamma
         if pair_daughter_gamma is None
         else _validated_pair_daughter_gamma(pair_daughter_gamma, electron_gamma)
     )
-    remap = (
-        None
-        if _pair_grids_are_identical(daughter, gamma)
-        else _pair_source_remap_operator_jax(daughter, gamma)
-    )
     if gamma_gamma_pair_response is None:
-        response = prepare_gamma_gamma_total_field_response_jax(
-            gamma_ray_energy_erg, daughter
-        )
-    elif not isinstance(gamma_gamma_pair_response, dict):
-        raise ValueError(
-            "gamma_gamma_pair_response must be a prepared total-field response, not the retired labelled tensor"
+        response = _prepare_cascade_gamma_gamma_response(
+            gamma_ray_energy_erg, _cascade_pair_grid(requested, gamma)
         )
     else:
         response = gamma_gamma_pair_response
+    if not isinstance(response, dict) or CASCADE_PAIR_METHOD not in response:
+        raise ValueError(
+            "cascade requires a prepared, versioned bin-integrated pair response"
+        )
+    daughter = response["lepton_gamma"]
     if response["pair_response"].shape != (daughter.size, energy.size, energy.size):
         raise ValueError(
             "total-field response shape does not match photon/daughter grids"
         )
-    if not _contains_tracer((energy, daughter, response)) and (
+    if not _contains_tracer((energy, requested, gamma, response)) and (
         not np.array_equal(energy, response["photon_energy_erg"])
-        or not np.array_equal(daughter, response["lepton_gamma"])
+        or not np.array_equal(daughter, _cascade_pair_grid(requested, gamma))
     ):
         raise ValueError("total-field response belongs to different grids")
+    remap = _pair_source_remap_operator_jax(daughter, gamma)
     omega = _positive_iteration_scalar("relaxation_omega", relaxation_omega, upper=1.0)
     tolerance = _positive_iteration_scalar("relative_tolerance", relative_tolerance)
     volume = 4.0 * jnp.pi * radius_cm**3 / 3.0
@@ -342,31 +351,30 @@ def steady_state_electromagnetic_cascade_jax(
     )
     ext_alpha = ext_kernel @ (ext_target * ext_weights)
     if include_external_gamma_gamma_target:
-        if external_gamma_gamma_pair_response is None:
-            external_gamma_gamma_pair_response = response.get("external_pair_response")
-        if external_gamma_gamma_pair_response is None:
-            external_gamma_gamma_pair_response = prepare_gamma_gamma_pair_response_jax(
-                daughter, gamma_ray_energy_erg, external_seed_photon_energy_erg
+        external = external_gamma_gamma_pair_response
+        if external is None:
+            external = response.get("external_pair_response")
+        if external is None:
+            external = _prepare_cascade_gamma_gamma_response(
+                gamma_ray_energy_erg, daughter, external_seed_photon_energy_erg
             )
-        else:
-            if "external_target_photon_energy_erg" not in response:
-                raise ValueError(
-                    "Cached external pair response requires exact external_target_photon_energy_erg metadata in the prepared response"
-                )
-            if external_gamma_gamma_pair_response.shape != (
-                daughter.size,
-                energy.size,
-                ext_energy.size,
-            ):
-                raise ValueError(
-                    "External pair response shape does not match its grids"
-                )
-            if not _contains_tracer((ext_energy, response)) and not np.array_equal(
-                ext_energy, response["external_target_photon_energy_erg"]
-            ):
-                raise ValueError(
-                    "External pair response belongs to a different target grid"
-                )
+        if not isinstance(external, dict) or CASCADE_PAIR_METHOD not in external:
+            raise ValueError(
+                "external cascade requires a versioned bin-integrated pair response"
+            )
+        external_gamma_gamma_pair_response = external["pair_response"]
+        if external_gamma_gamma_pair_response.shape != (
+            daughter.size,
+            energy.size,
+            ext_energy.size,
+        ):
+            raise ValueError("external pair response shape does not match its grids")
+        if not _contains_tracer((energy, daughter, ext_energy, external)) and (
+            not np.array_equal(ext_energy, external["target_photon_energy_erg"])
+            or not np.array_equal(energy, external["photon_energy_erg"])
+            or not np.array_equal(daughter, external["lepton_gamma"])
+        ):
+            raise ValueError("external pair response belongs to different grids")
     # All-angle daughter support for the distinct internal/external populations.
     x, y = energy[:, None] / _MEC2_CGS, ext_energy[None, :] / _MEC2_CGS
     product = x * y
@@ -502,11 +510,7 @@ def steady_state_electromagnetic_cascade_jax(
             else jnp.zeros_like(daughter)
         )
         high_q = collisions["electron_pair_injection_dgamma_cm3_s"] + ext_q
-        raw_pair = (
-            high_q
-            if remap is None
-            else _conservative_pair_source_remap_jax(high_q, remap)
-        )
+        raw_pair = _conservative_pair_source_remap_jax(high_q, remap)
         gg_alpha = collisions["absorption_coefficient_cm1"] + ext_alpha
         total_alpha = ssa + gg_alpha
         mapped = _internal_photon_density_kernel(
@@ -659,7 +663,9 @@ def steady_state_electromagnetic_cascade_jax(
     total_escape = jnp.sum(escaped, axis=0)
     photon_loss = collision["photon_loss_rate_cm3_s_erg"] + state["external_loss"]
     qnumber, qmoment = _pair_source_moments(state["high_q"], daughter)
-    mapped_number, mapped_moment = _pair_source_moments(state["raw_pair"], gamma)
+    mapped_number, mapped_moment = _pair_source_moments(
+        state["raw_pair"], gamma, _transport_cell_widths(gamma)
+    )
     events = collision["event_rate_cm3_s"] + state["external_events"]
     external_internal_power = jnp.sum(state["external_loss"] * weights * energy)
     incident_power = (

@@ -11,13 +11,10 @@ import pytest
 
 from helena.core.constants import ELECTRON_REST_ENERGY_CGS as MEC2
 from helena.core.jax_backend.chains.gamma_gamma_pair_source import (
-    prepare_gamma_gamma_total_field_response_jax,
+    _prepare_cascade_gamma_gamma_response,
 )
 from helena.core.jax_backend.chains.steady_state_electromagnetic_cascade import (
     steady_state_electromagnetic_cascade_jax,
-)
-from helena.core.jax_backend.kernels.gamma_gamma_pair_injection import (
-    prepare_gamma_gamma_pair_response_jax,
 )
 from helena.core.photon_fields import produced_sed_to_internal_photon_density
 
@@ -29,11 +26,10 @@ def photon_problem():
     energy = MEC2 * np.array([0.01, 0.1, 0.4, 0.7, 1.0, 1.8, 3.0, 10.0, 30.0, 100.0])
     daughter = np.geomspace(1.000001, 210.0, 257)
     external = MEC2 * np.array([0.2, 0.5, 1.0, 2.0, 3.0])
-    response = prepare_gamma_gamma_total_field_response_jax(energy, daughter)
-    external_response = prepare_gamma_gamma_pair_response_jax(
-        daughter, energy, external
+    response = _prepare_cascade_gamma_gamma_response(energy, daughter)
+    external_response = _prepare_cascade_gamma_gamma_response(
+        energy, daughter, external
     )
-    response["external_target_photon_energy_erg"] = jnp.asarray(external)
     q_gamma = 1e10 * np.exp(-np.log(energy / (3 * MEC2)) ** 2)
     external_density = 1e15 * np.exp(-np.log(external / MEC2) ** 2)
     zero = jnp.zeros_like(jnp.asarray(daughter))
@@ -201,17 +197,65 @@ def test_stale_external_response_identity_is_rejected(photon_problem):
         solve((tuple(stale), response, external_response), external=True)
 
 
+def test_same_cascade_source_with_or_without_prepared_responses(photon_problem):
+    args, _, _ = photon_problem
+    cached = solve(photon_problem, external=True, iterations=3)
+    direct = solve((args, None, None), external=True, iterations=3)
+    for key in ("high_resolution_electron_pair_injection_dgamma_cm3_s",
+                "raw_next_electron_pair_injection_dgamma_cm3_s"):
+        np.testing.assert_array_equal(cached[key], direct[key])
+
+
+def test_legacy_pointwise_response_is_rejected(photon_problem):
+    from helena.core.jax_backend.kernels.gamma_gamma_cascade_response import (
+        CASCADE_PAIR_METHOD,
+    )
+
+    args, response, external = photon_problem
+    legacy = {k: v for k, v in response.items() if k != CASCADE_PAIR_METHOD}
+    with pytest.raises(ValueError, match="bin-integrated"):
+        solve((args, legacy, external))
+    with pytest.raises(ValueError, match="bin-integrated"):
+        solve((args, response, external["pair_response"]), external=True)
+
+
+def test_nonnested_pair_grid_projects_particle_and_energy_rates_to_fv_rhs():
+    from helena.core.jax_backend.chains.gamma_gamma_pair_source import (
+        _cascade_pair_grid,
+    )
+    from helena.core.jax_backend.chains.steady_state_electromagnetic_cascade import (
+        _pair_source_remap_operator_jax,
+    )
+
+    requested = np.array([1.1, 2.0, 3.1, 7.0])
+    transport = np.array([1.1, 1.6, 2.5, 7.0])
+    fine = _cascade_pair_grid(requested, transport)
+    np.testing.assert_array_equal(fine, [1.1, 1.6, 2.0, 2.5, 3.1, 7.0])
+    widths = np.diff(fine)
+    trapezoid = np.r_[widths[0] / 2, (widths[1:] + widths[:-1]) / 2, widths[-1] / 2]
+    faces = np.sqrt(transport[:-1] * transport[1:])
+    fv = np.diff(
+        np.r_[transport[0] ** 2 / faces[0], faces, transport[-1] ** 2 / faces[-1]]
+    )
+    count_map = fv[:, None] * np.asarray(
+        _pair_source_remap_operator_jax(fine, transport)
+    )
+    np.testing.assert_allclose(count_map.sum(axis=0), trapezoid)
+    np.testing.assert_allclose(transport @ count_map, fine * trapezoid)
+    assert np.all(count_map >= 0.0)
+    assert np.all(np.count_nonzero(count_map, axis=0) <= 2)
+
+
 def test_hard_external_daughter_support_is_reported(photon_problem):
     args, response, _ = photon_problem
     hard = list(args)
     hard[12] = MEC2 * np.array([2e3, 5e3, 1e4, 3e4, 1e5])
     hard[13] = np.full(5, 1e9)
-    current = {**response, "external_target_photon_energy_erg": jnp.asarray(hard[12])}
-    external_response = prepare_gamma_gamma_pair_response_jax(
-        args[2], args[0], hard[12]
+    external_response = _prepare_cascade_gamma_gamma_response(
+        args[0], args[2], hard[12]
     )
     result = solve(
-        (tuple(hard), current, external_response), internal=False, external=True
+        (tuple(hard), response, external_response), internal=False, external=True
     )
     budget = result["external_gamma_gamma_budget"]
     assert float(budget["event_rate_cm3_s"]) > 0
@@ -324,7 +368,7 @@ def test_optional_radiation_sources_share_the_accepted_state():
     gamma = np.geomspace(1.000001, 210.0, 257)
     external = MEC2 * np.array([1e-10, 1e-8, 1e-6, 1e-4, 1e-2])
     external_density = 1e17 * np.exp(-np.log(external / (1e-5 * MEC2)) ** 2)
-    response = prepare_gamma_gamma_total_field_response_jax(energy, gamma)
+    response = _prepare_cascade_gamma_gamma_response(energy, gamma)
     zero = np.zeros_like(gamma)
     primary = 1e-6 * np.exp(-np.log(gamma / 30.0) ** 2)
     arguments = (
